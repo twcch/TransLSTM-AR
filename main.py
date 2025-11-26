@@ -104,15 +104,20 @@ def train_model_multi_stock(
         "epochs": 100
     }
     
-    # Add LSTM-specific parameters if needed
+    # Add model-specific parameters
     if model_type == "trans_lstm":
         model_params.update({
             "lstm_hidden_size": 128,
             "lstm_num_layers": 2
         })
+    elif model_type == "lstm":
+        model_params.update({
+            "hidden_size": 128,
+            "num_layers": 2
+        })
     
     # Generate model name - DON'T specify custom name, let save_model use default format
-    # This will create: MultiStock_translstmmodel_w30_h5.pth or MultiStock_transformermodel_w30_h5.pth
+    # This will create: MultiStock_lstmmodel_w30_h5.pth, etc.
     
     # Run training pipeline with combined data
     model = pipeline.run_training_pipeline(
@@ -149,7 +154,7 @@ def inference_single_stock(
     Args:
         ticker: Stock ticker symbol
         model_path: Path to the trained model
-        model_type: Type of model ('transformer' or 'trans_lstm')
+        model_type: Type of model ('transformer', 'trans_lstm', or 'lstm')
         window_size: Window size used during training
         forecast_horizon: Forecast horizon used during training
         start: Start date for data
@@ -188,11 +193,16 @@ def inference_single_stock(
         "epochs": 100
     }
     
-    # Add LSTM-specific parameters if needed
+    # Add model-specific parameters
     if model_type == "trans_lstm":
         model_params.update({
             "lstm_hidden_size": 128,
             "lstm_num_layers": 2
+        })
+    elif model_type == "lstm":
+        model_params.update({
+            "hidden_size": 128,
+            "num_layers": 2
         })
     
     # Run inference pipeline
@@ -304,7 +314,7 @@ def main():
     tickers = ["2330.TW", "AAPL"]
     
     # Model configuration
-    model_type = "trans_lstm"  # transformer or trans_lstm
+    model_type = "lstm"  # transformer, trans_lstm, or lstm
     window_size = 30
     forecast_horizon = 5
     
@@ -332,7 +342,10 @@ def main():
     if "inference" in MODE:
         # Generate model path using the same format as save_model
         # Format: {ticker}_{model_class}model_w{window}_h{horizon}.pth
-        model_class_name = "translstm" if model_type == "trans_lstm" else "transformer"
+        model_class_name = model_type  # "lstm", "translstm", or "transformer"
+        if model_type == "trans_lstm":
+            model_class_name = "translstm"
+        
         model_filename = f"MultiStock_{model_class_name}model_w{window_size}_h{forecast_horizon}.pth"
         model_path = f"output/models/{model_filename}"
         

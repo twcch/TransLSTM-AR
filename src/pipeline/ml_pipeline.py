@@ -16,6 +16,7 @@ from src.features.feature_engineer import TimeSeriesTransformer
 from src.models.base_model import BaseModel
 from src.models.transformer import TransformerModel
 from src.models.trans_lstm import TransLSTMModel
+from src.models.lstm import LSTMModel
 from utils.data import read_csv
 
 
@@ -233,7 +234,7 @@ class MLPipeline:
         Train the model.
         
         Args:
-            model_type: Type of model to train ("transformer" or "trans_lstm")
+            model_type: Type of model to train ("transformer", "trans_lstm", or "lstm")
             model_params: Model hyperparameters
             
         Returns:
@@ -253,7 +254,9 @@ class MLPipeline:
             "dropout": 0.1,
             "learning_rate": 0.001,
             "batch_size": 32,
-            "epochs": 100
+            "epochs": 100,
+            "hidden_size": 128,
+            "num_layers": 2
         }
         
         if model_params is not None:
@@ -283,6 +286,18 @@ class MLPipeline:
                 lstm_num_layers=default_params.get("lstm_num_layers", 2),
                 **{k: v for k, v in default_params.items() 
                    if k not in ["lstm_hidden_size", "lstm_num_layers"]}
+            )
+        elif model_type.lower() == "lstm":
+            self.model = LSTMModel(
+                input_dim=n_features,
+                window_size=self.window_size,
+                forecast_horizon=self.forecast_horizon,
+                hidden_size=default_params.get("hidden_size", 128),
+                num_layers=default_params.get("num_layers", 2),
+                dropout=default_params.get("dropout", 0.1),
+                learning_rate=default_params.get("learning_rate", 0.001),
+                batch_size=default_params.get("batch_size", 32),
+                epochs=default_params.get("epochs", 100)
             )
         else:
             raise ValueError(f"Unknown model type: {model_type}")
@@ -413,7 +428,7 @@ class MLPipeline:
         
         Args:
             model_path: Path to the saved model
-            model_type: Type of model ("transformer" or "trans_lstm")
+            model_type: Type of model ("transformer", "trans_lstm", or "lstm")
             model_params: Model parameters (optional, will use defaults if not provided)
             
         Returns:
@@ -421,6 +436,7 @@ class MLPipeline:
         """
         from src.models.transformer import TransformerModel
         from src.models.trans_lstm import TransLSTMModel
+        from src.models.lstm import LSTMModel
         
         print(f"Loading model from {model_path}...")
         
@@ -444,7 +460,9 @@ class MLPipeline:
                 "learning_rate": 0.001,
                 "batch_size": 32,
                 "lstm_hidden_size": 128,
-                "lstm_num_layers": 2
+                "lstm_num_layers": 2,
+                "hidden_size": 128,
+                "num_layers": 2
             }
         
         # Create model instance with correct architecture
@@ -473,6 +491,18 @@ class MLPipeline:
                 dropout=model_params.get("dropout", 0.1),
                 lstm_hidden_size=model_params.get("lstm_hidden_size", 128),
                 lstm_num_layers=model_params.get("lstm_num_layers", 2),
+                learning_rate=model_params.get("learning_rate", 0.001),
+                batch_size=model_params.get("batch_size", 32),
+                epochs=model_params.get("epochs", 100)
+            )
+        elif model_type.lower() == "lstm":
+            self.model = LSTMModel(
+                input_dim=n_features,
+                window_size=self.window_size,
+                forecast_horizon=self.forecast_horizon,
+                hidden_size=model_params.get("hidden_size", 128),
+                num_layers=model_params.get("num_layers", 2),
+                dropout=model_params.get("dropout", 0.1),
                 learning_rate=model_params.get("learning_rate", 0.001),
                 batch_size=model_params.get("batch_size", 32),
                 epochs=model_params.get("epochs", 100)
