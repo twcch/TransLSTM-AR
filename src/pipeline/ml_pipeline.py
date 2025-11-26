@@ -19,7 +19,8 @@ from src.models.trans_lstm import TransLSTMModel
 from src.models.lstm import LSTMModel
 from src.models.mlp_lstm import MLPLSTMModel
 from utils.data import read_csv
-
+from datetime import datetime
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 class MLPipeline:
     """
@@ -719,8 +720,6 @@ class MLPipeline:
         Returns:
             save_path: Path where results were saved
         """
-        from datetime import datetime
-        from sklearn.metrics import mean_squared_error, mean_absolute_error
         
         # Create output directory
         os.makedirs(output_dir, exist_ok=True)
@@ -740,12 +739,14 @@ class MLPipeline:
         rmse = np.sqrt(mse)
         mae = mean_absolute_error(actual, predictions)
         mape = np.mean(np.abs((actual - predictions) / actual)) * 100
+        r2 = r2_score(actual, predictions)
         
         # Print metrics
         print(f"\nMetrics for {self.ticker}:")
         print(f"RMSE: {rmse:.4f}")
         print(f"MAE: {mae:.4f}")
         print(f"MAPE: {mape:.2f}%")
+        print(f"R2: {r2:.4f}")
         
         # Save results
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
