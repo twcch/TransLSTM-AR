@@ -235,6 +235,16 @@ def inference_single_stock(
             "hidden_size": 128,
             "num_layers": 2
         })
+    elif model_type == "mlp_lstm":
+        model_params = {
+            "mlp_hidden_sizes": [128, 64],
+            "lstm_hidden_size": 128,
+            "lstm_num_layers": 2,
+            "dropout": 0.1,
+            "learning_rate": 0.001,
+            "batch_size": 32,
+            "epochs": 100
+        }
     
     # Run inference pipeline with scaled data
     predictions, actual, inference_dates = pipeline.run_inference_pipeline(
@@ -395,7 +405,7 @@ def main():
     tickers = ["2330.TW", "AAPL"]
     
     # Model configuration
-    model_type = "trans_lstm"  # transformer, trans_lstm, or lstm
+    model_type = "mlp_lstm"  # transformer, trans_lstm, lstm, mlp_lstm
     window_size = 30
     forecast_horizon = 5
     
@@ -426,6 +436,8 @@ def main():
         model_class_name = model_type  # "lstm", "translstm", or "transformer"
         if model_type == "trans_lstm":
             model_class_name = "translstm"
+        elif model_type == "mlp_lstm":
+            model_class_name = "mlplstm"
         
         model_filename = f"MultiStock_{model_class_name}model_w{window_size}_h{forecast_horizon}.pth"
         model_path = f"output/models/{model_filename}"

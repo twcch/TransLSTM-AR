@@ -17,6 +17,7 @@ from src.models.base_model import BaseModel
 from src.models.transformer import TransformerModel
 from src.models.trans_lstm import TransLSTMModel
 from src.models.lstm import LSTMModel
+from src.models.mlp_lstm import MLPLSTMModel
 from utils.data import read_csv
 
 
@@ -322,6 +323,23 @@ class MLPipeline:
                 "epochs": default_params.get("epochs", 100)
             }
             self.model = LSTMModel(**lstm_params)
+
+        elif model_type.lower() == "mlp_lstm":
+            # MLP-LSTM uses MLP + LSTM parameters
+            mlp_lstm_params = {
+                "input_dim": n_features,
+                "window_size": self.window_size,
+                "forecast_horizon": self.forecast_horizon,
+                "mlp_hidden_sizes": default_params.get("mlp_hidden_sizes", [128, 64]),
+                "lstm_hidden_size": default_params.get("lstm_hidden_size", 128),
+                "lstm_num_layers": default_params.get("lstm_num_layers", 2),
+                "dropout": default_params.get("dropout", 0.1),
+                "learning_rate": default_params.get("learning_rate", 0.001),
+                "batch_size": default_params.get("batch_size", 32),
+                "epochs": default_params.get("epochs", 100)
+            }
+            self.model = MLPLSTMModel(**mlp_lstm_params)
+
         else:
             raise ValueError(f"Unknown model type: {model_type}")
         
@@ -525,6 +543,19 @@ class MLPipeline:
                 forecast_horizon=self.forecast_horizon,
                 hidden_size=model_params.get("hidden_size", 128),
                 num_layers=model_params.get("num_layers", 2),
+                dropout=model_params.get("dropout", 0.1),
+                learning_rate=model_params.get("learning_rate", 0.001),
+                batch_size=model_params.get("batch_size", 32),
+                epochs=model_params.get("epochs", 100)
+            )
+        elif model_type.lower() == "mlp_lstm":
+            self.model = MLPLSTMModel(
+                input_dim=n_features,
+                window_size=self.window_size,
+                forecast_horizon=self.forecast_horizon,
+                mlp_hidden_sizes=model_params.get("mlp_hidden_sizes", [128, 64]),
+                lstm_hidden_size=model_params.get("lstm_hidden_size", 128),
+                lstm_num_layers=model_params.get("lstm_num_layers", 2),
                 dropout=model_params.get("dropout", 0.1),
                 learning_rate=model_params.get("learning_rate", 0.001),
                 batch_size=model_params.get("batch_size", 32),
