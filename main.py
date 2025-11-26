@@ -405,7 +405,7 @@ def main():
     tickers = ["2330.TW", "AAPL"]
 
     # Model configuration
-    model_type = "mlp_lstm"  # transformer, trans_lstm, lstm, mlp_lstm
+    model_type = "transformer"  # transformer, trans_lstm, lstm, mlp_lstm
     window_size = 30
     forecast_horizon = 5
 
