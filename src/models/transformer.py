@@ -40,7 +40,7 @@ class TransformerModel(BaseModel):
         d_model: Dimension of the model (embedding dimension)
         nhead: Number of attention heads
         num_encoder_layers: Number of encoder layers
-        num_decoder_layers: Number of decoder layers
+        num_decoder_layers: Number of decoder layers (kept for compatibility)
         dim_feedforward: Dimension of feedforward network
         dropout: Dropout rate
         forecast_horizon: Number of time steps to predict
@@ -93,15 +93,16 @@ class TransformerModel(BaseModel):
         # Positional encoding
         self.pos_encoder = PositionalEncoding(self.d_model, dropout=self.dropout)
 
-        # Transformer
-        self.transformer = nn.Transformer(
+        # Use TransformerEncoder instead of full Transformer
+        encoder_layer = nn.TransformerEncoderLayer(
             d_model=self.d_model,
             nhead=self.nhead,
-            num_encoder_layers=self.num_encoder_layers,
-            num_decoder_layers=self.num_decoder_layers,
             dim_feedforward=self.dim_feedforward,
             dropout=self.dropout,
             batch_first=False,
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer, num_layers=self.num_encoder_layers
         )
 
         # Output layer
@@ -110,13 +111,13 @@ class TransformerModel(BaseModel):
         # Move model to device
         self.input_embedding.to(self.device)
         self.pos_encoder.to(self.device)
-        self.transformer.to(self.device)
+        self.transformer_encoder.to(self.device)
         self.output_layer.to(self.device)
 
         # Optimizer and loss function
         self.optimizer = torch.optim.Adam(
             list(self.input_embedding.parameters())
-            + list(self.transformer.parameters())
+            + list(self.transformer_encoder.parameters())
             + list(self.output_layer.parameters()),
             lr=self.learning_rate,
         )
@@ -134,7 +135,7 @@ class TransformerModel(BaseModel):
 
         return X_tensor, None
 
-    def _create_batches(self, X: torch.Tensor, y: torch.Tensor) -> list:
+    def _create_batches(self, X: torch.Tensor, y: torch.Tensor):
         """Create batches for training."""
         dataset = torch.utils.data.TensorDataset(X, y)
         dataloader = torch.utils.data.DataLoader(
@@ -149,15 +150,7 @@ class TransformerModel(BaseModel):
         X_val: Optional[pd.DataFrame] = None,
         y_val: Optional[pd.DataFrame] = None,
     ) -> "TransformerModel":
-        """
-        Train the Transformer model.
-
-        Args:
-            X_train: Training features
-            y_train: Training targets
-            X_val: Validation features (optional)
-            y_val: Validation targets (optional)
-        """
+        """Train the Transformer model."""
         # Prepare data
         X_train_tensor, y_train_tensor = self._prepare_data(X_train, y_train)
 
@@ -171,41 +164,31 @@ class TransformerModel(BaseModel):
         for epoch in range(self.epochs):
             # Training phase
             self.input_embedding.train()
-            self.transformer.train()
+            self.transformer_encoder.train()
             self.output_layer.train()
 
             train_loss = 0.0
             for batch_X, batch_y in train_loader:
                 self.optimizer.zero_grad()
 
-                # batch_X shape: [batch_size, features]
-                # Reshape: [batch_size, features] -> [batch_size, 1, features]
-                batch_X = batch_X.unsqueeze(1)  # [batch_size, 1, features]
-
-                # Transpose for transformer: [seq_len=1, batch_size, features]
-                batch_X = batch_X.transpose(0, 1)  # [1, batch_size, features]
+                # Reshape: [batch_size, features] -> [1, batch_size, features]
+                batch_X = batch_X.unsqueeze(1).transpose(0, 1)
 
                 # Embedding and positional encoding
-                embedded = self.input_embedding(batch_X)  # [1, batch_size, d_model]
+                embedded = self.input_embedding(batch_X)
                 embedded = self.pos_encoder(embedded)
 
-                # Transformer (using embedded as both src and tgt)
-                output = self.transformer(
-                    embedded, embedded
-                )  # [1, batch_size, d_model]
+                # Transformer encoder only
+                output = self.transformer_encoder(embedded)  # [1, batch_size, d_model]
 
-                # Transpose back and squeeze: [batch_size, d_model]
-                output = output.transpose(0, 1).squeeze(1)  # [batch_size, d_model]
+                # Use the last time step's output
+                output = output[-1]  # [batch_size, d_model]
 
                 # Output layer
-                predictions = self.output_layer(
-                    output
-                )  # [batch_size, forecast_horizon]
+                predictions = self.output_layer(output)
 
                 # Compute loss
                 loss = self.criterion(predictions, batch_y)
-
-                # Backward pass
                 loss.backward()
                 self.optimizer.step()
 
@@ -217,20 +200,15 @@ class TransformerModel(BaseModel):
             # Validation phase
             if X_val is not None and y_val is not None:
                 self.input_embedding.eval()
-                self.transformer.eval()
+                self.transformer_encoder.eval()
                 self.output_layer.eval()
 
                 with torch.no_grad():
-                    # Reshape and transpose
-                    X_val_batch = X_val_tensor.unsqueeze(1)  # [batch_size, 1, features]
-                    X_val_batch = X_val_batch.transpose(
-                        0, 1
-                    )  # [1, batch_size, features]
-
+                    X_val_batch = X_val_tensor.unsqueeze(1).transpose(0, 1)
                     embedded = self.input_embedding(X_val_batch)
                     embedded = self.pos_encoder(embedded)
-                    output = self.transformer(embedded, embedded)
-                    output = output.transpose(0, 1).squeeze(1)
+                    output = self.transformer_encoder(embedded)
+                    output = output[-1]  # Use last time step
                     predictions = self.output_layer(output)
                     val_loss = self.criterion(predictions, y_val_tensor).item()
 
@@ -248,30 +226,24 @@ class TransformerModel(BaseModel):
                         f"Epoch [{epoch+1}/{self.epochs}], "
                         f"Train Loss: {avg_train_loss:.4f}"
                     )
+
         return self
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
-        """
-        Make predictions.
-
-        Args:
-            X: Input features
-
-        Returns:
-            predictions: Numpy array of shape (n_samples, forecast_horizon)
-        """
+        """Make predictions."""
         self.input_embedding.eval()
-        self.transformer.eval()
+        self.transformer_encoder.eval()
         self.output_layer.eval()
 
         X_tensor, _ = self._prepare_data(X)
 
         with torch.no_grad():
-            X_tensor = X_tensor.unsqueeze(0)  # [1, batch_size, features]
+            X_tensor = X_tensor.unsqueeze(1).transpose(0, 1)  # [1, batch_size, features]
             embedded = self.input_embedding(X_tensor)
             embedded = self.pos_encoder(embedded)
-            output = self.transformer(embedded, embedded)
-            predictions = self.output_layer(output.squeeze(0))
+            output = self.transformer_encoder(embedded)
+            output = output[-1]  # [batch_size, d_model]
+            predictions = self.output_layer(output)
 
         return predictions.cpu().numpy()
 
@@ -280,7 +252,7 @@ class TransformerModel(BaseModel):
         torch.save(
             {
                 "input_embedding_state_dict": self.input_embedding.state_dict(),
-                "transformer_state_dict": self.transformer.state_dict(),
+                "transformer_encoder_state_dict": self.transformer_encoder.state_dict(),
                 "output_layer_state_dict": self.output_layer.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "history": self.history,
@@ -324,8 +296,12 @@ class TransformerModel(BaseModel):
         self._build_model()
 
         # Load state dicts
-        self.input_embedding.load_state_dict(checkpoint["input_embedding_state_dict"])
-        self.transformer.load_state_dict(checkpoint["transformer_state_dict"])
+        self.input_embedding.load_state_dict(
+            checkpoint["input_embedding_state_dict"]
+        )
+        self.transformer_encoder.load_state_dict(
+            checkpoint["transformer_encoder_state_dict"]
+        )
         self.output_layer.load_state_dict(checkpoint["output_layer_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.history = checkpoint["history"]

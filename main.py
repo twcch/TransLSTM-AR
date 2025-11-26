@@ -1,8 +1,11 @@
+import os
+import numpy as np
+import pandas as pd
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+from datetime import datetime
 from src.data.data_loader import DataLoader
 from src.pipeline.ml_pipeline import MLPipeline
 from utils.data import read_csv
-import pandas as pd
-import os
 
 
 def load_data(tickers: list[str]):
@@ -265,10 +268,7 @@ def inference_multi_stock(
                 output_dir=output_dir
             )
             
-            # Calculate metrics for summary
-            from sklearn.metrics import mean_squared_error, mean_absolute_error
-            import numpy as np
-            
+            # Calculate metrics for summary      
             rmse = np.sqrt(mean_squared_error(actual, predictions))
             mae = mean_absolute_error(actual, predictions)
             mape = np.mean(np.abs((actual - predictions) / actual)) * 100
@@ -286,8 +286,7 @@ def inference_multi_stock(
     
     # Save combined metrics
     if all_metrics:
-        from datetime import datetime
-        
+      
         combined_metrics = pd.DataFrame(all_metrics)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         combined_metrics_path = os.path.join(
@@ -306,13 +305,13 @@ def inference_multi_stock(
 
 def main():
     # Mode selection
-    MODE = ["train", "inference"]  # Options: "load", "train", "inference"
+    MODE = ["inference"]  # Options: "load", "train", "inference"
     
     # Define tickers to use
     tickers = ["2330.TW", "AAPL"]
     
     # Model configuration
-    model_type = "transformer"  # transformer, trans_lstm, or lstm
+    model_type = "trans_lstm"  # transformer, trans_lstm, or lstm
     window_size = 30
     forecast_horizon = 5
     
