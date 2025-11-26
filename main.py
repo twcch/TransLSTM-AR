@@ -1,4 +1,4 @@
-from core.data.data_loader import DataLoader
+from src.data.data_loader import DataLoader
 from utils.data import read_csv
 
 
