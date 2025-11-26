@@ -7,6 +7,7 @@ from src.data.data_loader import DataLoader
 from src.pipeline.ml_pipeline import MLPipeline
 from utils.data import read_csv
 from sklearn.preprocessing import MinMaxScaler
+from src.features.feature_engineer import TimeSeriesTransformer
 
 
 def load_data(tickers: list[str]):
@@ -19,61 +20,169 @@ def load_data(tickers: list[str]):
         print(f"Data for {ticker} saved to CSV.")
 
 
-def combine_stock_data(tickers: list[str], start: str, end: str) -> pd.DataFrame:
-    """
-    Combine multiple stock data with per-stock standardization.
+# def combine_stock_data(tickers: list[str], start: str, end: str) -> pd.DataFrame:
+#     """
+#     Combine multiple stock data with per-stock standardization.
 
+#     Args:
+#         tickers: List of ticker symbols
+#         start: Start date
+#         end: End date
+
+#     Returns:
+#         Combined DataFrame with all stocks data (already scaled per stock)
+#     """
+#     from sklearn.preprocessing import MinMaxScaler
+
+#     combined_data = []
+
+#     for ticker in tickers:
+#         print(f"Loading data for {ticker}...")
+#         # Load from CSV
+#         csv_path = f"data/raw/{ticker.replace('.', '')}.csv"
+#         data = read_csv(csv_path)
+
+#         # Filter by date range
+#         data["Date"] = pd.to_datetime(data["Date"])
+#         data = data[(data["Date"] >= start) & (data["Date"] <= end)].copy()
+
+#         # Per-stock standardization
+#         # Scale numeric columns (Open, High, Low, Close, Volume)
+#         numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
+#         scaler = MinMaxScaler(feature_range=(0, 1))
+
+#         # Only scale if columns exist
+#         existing_numeric = [col for col in numeric_columns if col in data.columns]
+#         if existing_numeric:
+#             data[existing_numeric] = scaler.fit_transform(data[existing_numeric])
+
+#         # Add ticker column to identify the stock
+#         data["Ticker"] = ticker
+
+#         combined_data.append(data)
+#         print(f"  - Scaled {ticker} independently (price range normalized to [0, 1])")
+
+#     # Concatenate all data
+#     combined_df = pd.concat(combined_data, ignore_index=True)
+
+#     # Sort by date
+#     combined_df = combined_df.sort_values("Date").reset_index(drop=True)
+
+#     print(f"\nCombined data shape: {combined_df.shape}")
+#     print(f"Date range: {combined_df['Date'].min()} to {combined_df['Date'].max()}")
+#     print(f"Stocks included: {combined_df['Ticker'].unique()}")
+#     print("Note: Each stock has been scaled independently before combining")
+
+#     return combined_df
+
+import pickle
+import os
+
+def combine_stock_sequences(
+    tickers: list[str], 
+    start: str, 
+    end: str, 
+    window_size: int = 30,
+    forecast_horizon: int = 5,
+    save_scalers: bool = True,
+    scaler_dir: str = "output/scalers"
+) -> tuple:
+    """
+    Combine multiple stock data by creating sequences per stock first,
+    then concatenating all sequences.
+    
+    This preserves time series continuity for each stock.
+    
     Args:
         tickers: List of ticker symbols
         start: Start date
         end: End date
-
+        window_size: Sliding window size
+        forecast_horizon: Prediction horizon
+        save_scalers: Whether to save scalers for inference
+        scaler_dir: Directory to save scaler objects
+        
     Returns:
-        Combined DataFrame with all stocks data (already scaled per stock)
+        X_combined: Combined feature sequences
+        y_combined: Combined target sequences
     """
-    from sklearn.preprocessing import MinMaxScaler
-
-    combined_data = []
-
+    all_X_sequences = []
+    all_y_sequences = []
+    
+    # Create scaler directory if needed
+    if save_scalers:
+        os.makedirs(scaler_dir, exist_ok=True)
+    
     for ticker in tickers:
-        print(f"Loading data for {ticker}...")
-        # Load from CSV
+        print(f"\nProcessing {ticker}...")
+        
+        # 1. Load data
         csv_path = f"data/raw/{ticker.replace('.', '')}.csv"
         data = read_csv(csv_path)
-
-        # Filter by date range
-        data["Date"] = pd.to_datetime(data["Date"])
-        data = data[(data["Date"] >= start) & (data["Date"] <= end)].copy()
-
-        # Per-stock standardization
-        # Scale numeric columns (Open, High, Low, Close, Volume)
-        numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
+        
+        # 2. Filter by date range
+        data['Date'] = pd.to_datetime(data['Date'])
+        data = data[(data['Date'] >= start) & (data['Date'] <= end)].copy()
+        
+        # 3. Per-stock standardization
+        numeric_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
         scaler = MinMaxScaler(feature_range=(0, 1))
-
-        # Only scale if columns exist
         existing_numeric = [col for col in numeric_columns if col in data.columns]
+        
         if existing_numeric:
+            # ✅ Fit on training data
             data[existing_numeric] = scaler.fit_transform(data[existing_numeric])
-
-        # Add ticker column to identify the stock
-        data["Ticker"] = ticker
-
-        combined_data.append(data)
-        print(f"  - Scaled {ticker} independently (price range normalized to [0, 1])")
-
-    # Concatenate all data
-    combined_df = pd.concat(combined_data, ignore_index=True)
-
-    # Sort by date
-    combined_df = combined_df.sort_values("Date").reset_index(drop=True)
-
-    print(f"\nCombined data shape: {combined_df.shape}")
-    print(f"Date range: {combined_df['Date'].min()} to {combined_df['Date'].max()}")
-    print(f"Stocks included: {combined_df['Ticker'].unique()}")
-    print("Note: Each stock has been scaled independently before combining")
-
-    return combined_df
-
+            
+            # ✅ Save scaler for inference
+            if save_scalers:
+                ticker_clean = ticker.replace('.', '')
+                scaler_path = os.path.join(scaler_dir, f"{ticker_clean}_scaler.pkl")
+                with open(scaler_path, 'wb') as f:
+                    pickle.dump({
+                        'scaler': scaler,
+                        'columns': existing_numeric,
+                        'ticker': ticker,
+                        'date_range': (start, end)
+                    }, f)
+                print(f"  - Scaler saved to {scaler_path}")
+        
+        print(f"  - Scaled {ticker} independently")
+        
+        # 4. Create sequences for THIS stock only
+        feature_columns = existing_numeric
+        target_column = 'Close'
+        
+        transformer = TimeSeriesTransformer(
+            window_size=window_size,
+            forecast_horizon=forecast_horizon,
+            target_column=target_column,
+            feature_columns=feature_columns,
+            stride=1
+        )
+        
+        X_stock, y_stock = transformer.fit_transform(data)
+        
+        print(f"  - Created {len(X_stock)} sequences for {ticker}")
+        print(f"    X shape: {X_stock.shape}, y shape: {y_stock.shape}")
+        
+        # 5. Add to combined list
+        all_X_sequences.append(X_stock)
+        all_y_sequences.append(y_stock)
+    
+    # 6. Concatenate all sequences
+    X_combined = pd.concat(all_X_sequences, ignore_index=True)
+    y_combined = pd.concat(all_y_sequences, ignore_index=True)
+    
+    print(f"\n{'='*80}")
+    print(f"Combined sequences from {len(tickers)} stocks:")
+    print(f"Total X shape: {X_combined.shape}")
+    print(f"Total y shape: {y_combined.shape}")
+    print(f"Each sequence maintains temporal continuity within its stock")
+    if save_scalers:
+        print(f"Scalers saved to: {scaler_dir}/")
+    print(f"{'='*80}\n")
+    
+    return X_combined, y_combined
 
 def train_model_multi_stock(
     tickers: list[str],
@@ -84,7 +193,7 @@ def train_model_multi_stock(
     start: str = "2013-12-01",
     end: str = "2023-12-31",
 ) -> tuple:
-    """Train a model using multiple stocks' data with per-stock scaling."""
+    """Train a model using multiple stocks' sequences."""
     print(f"\n{'=' * 80}")
     print(f"Training {model_type} model with multiple stocks")
     print(f"Tickers: {', '.join(tickers)}")
@@ -92,15 +201,26 @@ def train_model_multi_stock(
     print(f"Data source: {'CSV' if from_csv else 'API'}")
     print(f"{'=' * 80}\n")
 
-    # Combine data from multiple stocks (with per-stock scaling)
-    combined_data = combine_stock_data(tickers, start, end)
+    # ✅ 使用正確的函數：先建立序列，再合併
+    X_combined, y_combined = combine_stock_sequences(
+        tickers=tickers,
+        start=start,
+        end=end,
+        window_size=window_size,
+        forecast_horizon=forecast_horizon
+    )
+    
+    # ✅ 驗證序列完整性（添加這個檢查）
+    verify_sequence_integrity(X_combined, window_size=window_size, n_features=5)
+    
+    # Save combined sequences (optional)
+    combined_dir = "data/processed"
+    os.makedirs(combined_dir, exist_ok=True)
+    X_combined.to_csv(f"{combined_dir}/X_combined.csv", index=False)
+    y_combined.to_csv(f"{combined_dir}/y_combined.csv", index=False)
+    print(f"Combined sequences saved to {combined_dir}/")
 
-    # Save combined data
-    combined_csv_path = "data/raw/combined_stocks.csv"
-    combined_data.to_csv(combined_csv_path, index=False)
-    print(f"Combined data saved to {combined_csv_path}")
-
-    # Create pipeline with a generic ticker name
+    # Create pipeline
     pipeline = MLPipeline(
         ticker="MultiStock",
         window_size=window_size,
@@ -128,27 +248,92 @@ def train_model_multi_stock(
         model_params.update({"lstm_hidden_size": 128, "lstm_num_layers": 2})
     elif model_type == "lstm":
         model_params.update({"hidden_size": 128, "num_layers": 2, "dropout": 0.2})
+    elif model_type == "mlp_lstm":
+        model_params.update({
+            "mlp_hidden_sizes": [128, 64],
+            "lstm_hidden_size": 128,
+            "lstm_num_layers": 2
+        })
 
-    # Run training pipeline with combined data
-    # IMPORTANT: Set scale_data=False since we already did per-stock scaling
-    model = pipeline.run_training_pipeline(
-        start=start,
-        end=end,
-        from_csv=True,
-        csv_path=combined_csv_path,
-        model_type=model_type,
-        model_params=model_params,
-        drop_columns=["Date", "Ticker"],
-        handle_missing=True,
-        handle_outliers=False,
-        scale_data=False,  # Already scaled per-stock
-        save_model=True,
-        model_name=None,
-        output_dir="output/models",
+    # ✅ 關鍵：跳過 pipeline 的 create_sequences，直接使用已建立的序列
+    pipeline.preprocessed_data = None  # Not needed
+    
+    # Split data into train/val
+    from sklearn.model_selection import train_test_split
+    pipeline.X_train, pipeline.X_val, pipeline.y_train, pipeline.y_val = train_test_split(
+        X_combined, 
+        y_combined,
+        test_size=pipeline.test_size,
+        shuffle=False,  # ⚠️ 重要：不打亂時間順序
+        random_state=pipeline.random_state
     )
+    
+    print(f"Train size: {len(pipeline.X_train)}, Val size: {len(pipeline.X_val)}")
+    
+    # Train model
+    print(f"\nTraining {model_type} model...")
+    model = pipeline.train_model(
+        model_type=model_type,
+        model_params=model_params
+    )
+    
+    # Save model
+    print("\nSaving model...")
+    model_path = pipeline.save_model(
+        model_name=None,
+        output_dir="output/models"
+    )
+    
+    print(f"\n{'='*80}")
+    print(f"Training completed!")
+    print(f"Model saved to: {model_path}")
+    print(f"{'='*80}\n")
 
     return model, pipeline
 
+
+def verify_sequence_integrity(X: pd.DataFrame, window_size: int = 30, n_features: int = 5):
+    """
+    驗證序列完整性 - 確保每個序列代表單一股票的連續時間
+    """
+    print("\n" + "="*80)
+    print("🔍 Verifying Sequence Integrity")
+    print("="*80)
+    
+    # 檢查形狀
+    expected_features = window_size * n_features
+    if X.shape[1] != expected_features:
+        print(f"❌ ERROR: Expected {expected_features} features, got {X.shape[1]}")
+        return False
+    
+    print(f"✅ Shape correct: {X.shape}")
+    print(f"   Expected: ({len(X)}, {expected_features})")
+    
+    # 檢查前幾個序列的時間連續性
+    for i in range(min(3, len(X))):  # 檢查前3個序列
+        seq = X.iloc[i].values.reshape(window_size, n_features)
+        
+        # 假設 Close 是第 4 個特徵 (0-indexed: 3)
+        close_prices = seq[:, 3]
+        
+        # 計算價格變化
+        price_changes = np.abs(np.diff(close_prices))
+        avg_change = np.mean(price_changes)
+        max_change = np.max(price_changes)
+        
+        print(f"\n📊 Sequence {i+1} continuity analysis:")
+        print(f"   Close prices (first 5 steps): {close_prices[:5]}")
+        print(f"   Average price change: {avg_change:.6f}")
+        print(f"   Maximum price change: {max_change:.6f}")
+        
+        # 標準化後的價格變化應該很小
+        if avg_change > 0.05:  # 如果平均變化超過5%，可能有問題
+            print(f"   ⚠️  WARNING: Large price jumps detected in sequence {i+1}!")
+        else:
+            print(f"   ✅ PASS: Temporal continuity verified")
+    
+    print("="*80 + "\n")
+    return True
 
 def inference_single_stock(
     ticker: str,
@@ -159,19 +344,41 @@ def inference_single_stock(
     start: str = "2013-12-01",
     end: str = "2023-12-31",
     output_dir: str = "output/results",
+    scaler_dir: str = "output/scalers"
 ) -> tuple:
     """
     Run inference on a single stock using the trained global model.
-    Each stock is scaled independently to match training distribution.
+    Uses the SAME scaler from training (not refitted).
     """
-
+    import pickle
+    
     print(f"\n{'=' * 80}")
     print(f"Running inference for {ticker}")
     print(f"Model: {model_type}")
     print(f"Model path: {model_path}")
     print(f"{'=' * 80}\n")
 
-    # Load and preprocess data with per-stock scaling
+    # ✅ Load the scaler from training
+    ticker_clean = ticker.replace('.', '')
+    scaler_path = os.path.join(scaler_dir, f"{ticker_clean}_scaler.pkl")
+    
+    if not os.path.exists(scaler_path):
+        raise FileNotFoundError(
+            f"Scaler file not found: {scaler_path}\n"
+            f"Please train the model first to generate scaler files."
+        )
+    
+    with open(scaler_path, 'rb') as f:
+        scaler_data = pickle.load(f)
+    
+    scaler = scaler_data['scaler']
+    existing_numeric = scaler_data['columns']
+    train_date_range = scaler_data['date_range']
+    
+    print(f"✅ Loaded scaler from training period: {train_date_range[0]} to {train_date_range[1]}")
+    print(f"   Features: {existing_numeric}")
+
+    # Load and preprocess data
     csv_path = f"data/raw/{ticker.replace('.', '')}.csv"
     data = read_csv(csv_path)
 
@@ -180,22 +387,25 @@ def inference_single_stock(
     data = data[(data["Date"] >= start) & (data["Date"] <= end)].copy()
 
     # Store original Close values for inverse transform
-    original_close = data["Close"].values
     dates = data["Date"].values
 
-    # Per-stock standardization (same as training)
-    numeric_columns = ["Open", "High", "Low", "Close", "Volume"]
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    existing_numeric = [col for col in numeric_columns if col in data.columns]
-
+    # ✅ Use the SAME scaler from training (transform only, no fit!)
     if existing_numeric:
-        data[existing_numeric] = scaler.fit_transform(data[existing_numeric])
+        # IMPORTANT: Use transform() NOT fit_transform()
+        data[existing_numeric] = scaler.transform(data[existing_numeric])
+        print(f"✅ Applied training scaler to inference data (transform only)")
+        
+        # Show if data is out of training range
+        for col in existing_numeric:
+            col_min = data[col].min()
+            col_max = data[col].max()
+            if col_min < 0 or col_max > 1:
+                print(f"   ⚠️  {col}: range [{col_min:.3f}, {col_max:.3f}] - outside [0, 1]")
+                print(f"      This indicates {ticker} prices are outside training range")
 
     # Save scaled data temporarily
     temp_csv_path = f"data/raw/temp_{ticker.replace('.', '')}_scaled.csv"
     data.to_csv(temp_csv_path, index=False)
-
-    print(f"Applied per-stock scaling to {ticker} (matching training distribution)")
 
     # Create pipeline
     pipeline = MLPipeline(
@@ -226,15 +436,11 @@ def inference_single_stock(
     elif model_type == "lstm":
         model_params.update({"hidden_size": 128, "num_layers": 2})
     elif model_type == "mlp_lstm":
-        model_params = {
+        model_params.update({
             "mlp_hidden_sizes": [128, 64],
             "lstm_hidden_size": 128,
             "lstm_num_layers": 2,
-            "dropout": 0.1,
-            "learning_rate": 0.001,
-            "batch_size": 32,
-            "epochs": 100,
-        }
+        })
 
     # Run inference pipeline with scaled data
     predictions, actual, inference_dates = pipeline.run_inference_pipeline(
@@ -247,13 +453,12 @@ def inference_single_stock(
         csv_path=temp_csv_path,
         drop_columns=["Date"],
         handle_missing=True,
-        scale_data=False,  # Already scaled above
+        scale_data=False,  # Already scaled above using training scaler
         save_results=False,  # We'll save manually after inverse transform
         output_dir=output_dir,
     )
 
-    # Inverse transform predictions back to original scale
-    # Create full feature matrix for inverse transform
+    # ✅ Inverse transform using the SAME scaler
     close_idx = existing_numeric.index("Close")
     n_features = len(existing_numeric)
 
@@ -267,41 +472,31 @@ def inference_single_stock(
     actual_full[:, close_idx] = actual
     actual_original = scaler.inverse_transform(actual_full)[:, close_idx]
 
-    print(f"\nInverse transformed predictions back to original {ticker} price scale")
+    print(f"\n✅ Inverse transformed predictions back to original {ticker} price scale")
 
-    # Save results manually with original scale
+    # Save results
     from datetime import datetime as dt
-
-    results_df = pd.DataFrame(
-        {
-            "Date": inference_dates,
-            "Actual": actual_original,
-            "Predicted": predictions_original,
-            "Error": actual_original - predictions_original,
-            "Abs_Error": np.abs(actual_original - predictions_original),
-            "Percentage_Error": np.abs(
-                (actual_original - predictions_original) / actual_original
-            )
-            * 100,
-        }
-    )
+    
+    results_df = pd.DataFrame({
+        "Date": inference_dates,
+        "Actual": actual_original,
+        "Predicted": predictions_original,
+        "Error": actual_original - predictions_original,
+        "Abs_Error": np.abs(actual_original - predictions_original),
+        "Percentage_Error": np.abs((actual_original - predictions_original) / actual_original) * 100,
+    })
 
     # Calculate metrics
-    from sklearn.metrics import mean_squared_error, mean_absolute_error
-
     rmse = np.sqrt(mean_squared_error(actual_original, predictions_original))
     mae = mean_absolute_error(actual_original, predictions_original)
-    mape = (
-        np.mean(np.abs((actual_original - predictions_original) / actual_original))
-        * 100
-    )
+    mape = np.mean(np.abs((actual_original - predictions_original) / actual_original)) * 100
     r2 = r2_score(actual_original, predictions_original)
 
     print(f"\nMetrics for {ticker} (original scale):")
     print(f"RMSE: {rmse:.4f}")
     print(f"MAE: {mae:.4f}")
     print(f"MAPE: {mape:.2f}%")
-    print(f"R2: {r2:.4f}")
+    print(f"R²: {r2:.4f}")
 
     # Save results
     os.makedirs(output_dir, exist_ok=True)
@@ -318,7 +513,6 @@ def inference_single_stock(
         os.remove(temp_csv_path)
 
     return predictions_original, actual_original, inference_dates
-
 
 def inference_multi_stock(
     tickers: list[str],
