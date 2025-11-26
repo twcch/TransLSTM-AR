@@ -112,12 +112,10 @@ def train_model_multi_stock(
         })
     elif model_type == "lstm":
         model_params.update({
-            "hidden_size": 128,
-            "num_layers": 2
+            "hidden_size": 128,  # 建议增加
+            "num_layers": 2,
+            "dropout": 0.2  # 建议增加 dropout
         })
-    
-    # Generate model name - DON'T specify custom name, let save_model use default format
-    # This will create: MultiStock_lstmmodel_w30_h5.pth, etc.
     
     # Run training pipeline with combined data
     model = pipeline.run_training_pipeline(
@@ -132,7 +130,7 @@ def train_model_multi_stock(
         handle_outliers=False,
         scale_data=True,
         save_model=True,
-        model_name=None,  # Use default naming
+        model_name=None,
         output_dir="output/models"
     )
     
@@ -314,7 +312,7 @@ def main():
     tickers = ["2330.TW", "AAPL"]
     
     # Model configuration
-    model_type = "lstm"  # transformer, trans_lstm, or lstm
+    model_type = "transformer"  # transformer, trans_lstm, or lstm
     window_size = 30
     forecast_horizon = 5
     
