@@ -1,5 +1,6 @@
 import pandas as pd
 from abc import ABC, abstractmethod
+from sklearn.preprocessing import MinMaxScaler as SklearnMinMaxScaler
 
 
 class BasePreprocessor(ABC):
@@ -109,6 +110,44 @@ class DropColumnsPreprocessor(BasePreprocessor):
     def fit_transform(self, X: pd.DataFrame) -> pd.DataFrame:
         return self.fit(X).transform(X)
 
+class MinMaxScaler(BasePreprocessor):
+    def __init__(self, feature_range: tuple = (0, 1)):
+        """
+        Initialize MinMaxScaler using sklearn's MinMaxScaler.
+        
+        Args:
+            feature_range: Desired range of transformed data (min, max)
+        """
+        self.feature_range = feature_range
+        self.scaler = SklearnMinMaxScaler(feature_range=feature_range)
+        self.numeric_columns = None
+
+    def fit(self, X: pd.DataFrame) -> "MinMaxScaler":
+        # 只處理數值型欄位
+        self.numeric_columns = X.select_dtypes(include=["number"]).columns.tolist()
+        
+        if self.numeric_columns:
+            self.scaler.fit(X[self.numeric_columns])
+        
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        if self.numeric_columns is None:
+            raise RuntimeError(
+                "The scaler must be fitted before calling transform."
+            )
+        
+        X_scaled = X.copy()
+        
+        if self.numeric_columns:
+            X_scaled[self.numeric_columns] = self.scaler.transform(
+                X[self.numeric_columns]
+            )
+        
+        return X_scaled
+
+    def fit_transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        return self.fit(X).transform(X)
 
 class PreprocessingPipeline(BasePreprocessor):
     def __init__(self, steps: list[BasePreprocessor]):
