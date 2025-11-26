@@ -17,10 +17,9 @@ def load_data(tickers: list[str]):
         data_loader.save_to_csv(f"data/raw/{ticker.replace('.', '')}.csv")
         print(f"Data for {ticker} saved to CSV.")
 
-
 def combine_stock_data(tickers: list[str], start: str, end: str) -> pd.DataFrame:
     """
-    Combine multiple stock data into a single DataFrame.
+    Combine multiple stock data with per-stock standardization.
     
     Args:
         tickers: List of ticker symbols
@@ -28,8 +27,10 @@ def combine_stock_data(tickers: list[str], start: str, end: str) -> pd.DataFrame
         end: End date
         
     Returns:
-        Combined DataFrame with all stocks data
+        Combined DataFrame with all stocks data (already scaled per stock)
     """
+    from sklearn.preprocessing import MinMaxScaler
+    
     combined_data = []
     
     for ticker in tickers:
@@ -40,12 +41,23 @@ def combine_stock_data(tickers: list[str], start: str, end: str) -> pd.DataFrame
         
         # Filter by date range
         data['Date'] = pd.to_datetime(data['Date'])
-        data = data[(data['Date'] >= start) & (data['Date'] <= end)]
+        data = data[(data['Date'] >= start) & (data['Date'] <= end)].copy()
+        
+        # Per-stock standardization
+        # Scale numeric columns (Open, High, Low, Close, Volume)
+        numeric_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        
+        # Only scale if columns exist
+        existing_numeric = [col for col in numeric_columns if col in data.columns]
+        if existing_numeric:
+            data[existing_numeric] = scaler.fit_transform(data[existing_numeric])
         
         # Add ticker column to identify the stock
         data['Ticker'] = ticker
         
         combined_data.append(data)
+        print(f"  - Scaled {ticker} independently (price range normalized to [0, 1])")
     
     # Concatenate all data
     combined_df = pd.concat(combined_data, ignore_index=True)
@@ -56,6 +68,7 @@ def combine_stock_data(tickers: list[str], start: str, end: str) -> pd.DataFrame
     print(f"\nCombined data shape: {combined_df.shape}")
     print(f"Date range: {combined_df['Date'].min()} to {combined_df['Date'].max()}")
     print(f"Stocks included: {combined_df['Ticker'].unique()}")
+    print("Note: Each stock has been scaled independently before combining")
     
     return combined_df
 
@@ -68,7 +81,7 @@ def train_model_multi_stock(
     start: str = "2013-12-01",
     end: str = "2023-12-31"
 ) -> tuple:
-    """Train a model using multiple stocks' data."""
+    """Train a model using multiple stocks' data with per-stock scaling."""
     print(f"\n{'=' * 80}")
     print(f"Training {model_type} model with multiple stocks")
     print(f"Tickers: {', '.join(tickers)}")
@@ -76,7 +89,7 @@ def train_model_multi_stock(
     print(f"Data source: {'CSV' if from_csv else 'API'}")
     print(f"{'=' * 80}\n")
     
-    # Combine data from multiple stocks
+    # Combine data from multiple stocks (with per-stock scaling)
     combined_data = combine_stock_data(tickers, start, end)
     
     # Save combined data
@@ -115,12 +128,13 @@ def train_model_multi_stock(
         })
     elif model_type == "lstm":
         model_params.update({
-            "hidden_size": 128,  # 建议增加
+            "hidden_size": 128,
             "num_layers": 2,
-            "dropout": 0.2  # 建议增加 dropout
+            "dropout": 0.2
         })
     
     # Run training pipeline with combined data
+    # IMPORTANT: Set scale_data=False since we already did per-stock scaling
     model = pipeline.run_training_pipeline(
         start=start,
         end=end,
@@ -131,7 +145,7 @@ def train_model_multi_stock(
         drop_columns=["Date", "Ticker"],
         handle_missing=True,
         handle_outliers=False,
-        scale_data=True,
+        scale_data=False,  # Already scaled per-stock
         save_model=True,
         model_name=None,
         output_dir="output/models"
@@ -151,25 +165,41 @@ def inference_single_stock(
 ) -> tuple:
     """
     Run inference on a single stock using the trained global model.
-    
-    Args:
-        ticker: Stock ticker symbol
-        model_path: Path to the trained model
-        model_type: Type of model ('transformer', 'trans_lstm', or 'lstm')
-        window_size: Window size used during training
-        forecast_horizon: Forecast horizon used during training
-        start: Start date for data
-        end: End date for data
-        output_dir: Directory to save results
-        
-    Returns:
-        predictions, actual, dates: Inference results
+    Each stock is scaled independently to match training distribution.
     """
+    from sklearn.preprocessing import MinMaxScaler
+    
     print(f"\n{'=' * 80}")
     print(f"Running inference for {ticker}")
     print(f"Model: {model_type}")
     print(f"Model path: {model_path}")
     print(f"{'=' * 80}\n")
+    
+    # Load and preprocess data with per-stock scaling
+    csv_path = f"data/raw/{ticker.replace('.', '')}.csv"
+    data = read_csv(csv_path)
+    
+    # Filter by date range
+    data['Date'] = pd.to_datetime(data['Date'])
+    data = data[(data['Date'] >= start) & (data['Date'] <= end)].copy()
+    
+    # Store original Close values for inverse transform
+    original_close = data['Close'].values
+    dates = data['Date'].values
+    
+    # Per-stock standardization (same as training)
+    numeric_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    existing_numeric = [col for col in numeric_columns if col in data.columns]
+    
+    if existing_numeric:
+        data[existing_numeric] = scaler.fit_transform(data[existing_numeric])
+    
+    # Save scaled data temporarily
+    temp_csv_path = f"data/raw/temp_{ticker.replace('.', '')}_scaled.csv"
+    data.to_csv(temp_csv_path, index=False)
+    
+    print(f"Applied per-stock scaling to {ticker} (matching training distribution)")
     
     # Create pipeline
     pipeline = MLPipeline(
@@ -206,23 +236,77 @@ def inference_single_stock(
             "num_layers": 2
         })
     
-    # Run inference pipeline
-    predictions, actual, dates = pipeline.run_inference_pipeline(
+    # Run inference pipeline with scaled data
+    predictions, actual, inference_dates = pipeline.run_inference_pipeline(
         model_path=model_path,
         model_type=model_type,
-        model_params=model_params,  # Pass model params here
+        model_params=model_params,
         start=start,
         end=end,
         from_csv=True,
-        csv_path=f"data/raw/{ticker.replace('.', '')}.csv",
+        csv_path=temp_csv_path,
         drop_columns=["Date"],
         handle_missing=True,
-        scale_data=True,
-        save_results=True,
+        scale_data=False,  # Already scaled above
+        save_results=False,  # We'll save manually after inverse transform
         output_dir=output_dir
     )
     
-    return predictions, actual, dates
+    # Inverse transform predictions back to original scale
+    # Create full feature matrix for inverse transform
+    close_idx = existing_numeric.index('Close')
+    n_features = len(existing_numeric)
+    
+    # Predictions
+    pred_full = np.zeros((len(predictions), n_features))
+    pred_full[:, close_idx] = predictions
+    predictions_original = scaler.inverse_transform(pred_full)[:, close_idx]
+    
+    # Actual values
+    actual_full = np.zeros((len(actual), n_features))
+    actual_full[:, close_idx] = actual
+    actual_original = scaler.inverse_transform(actual_full)[:, close_idx]
+    
+    print(f"\nInverse transformed predictions back to original {ticker} price scale")
+    
+    # Save results manually with original scale
+    from datetime import datetime as dt
+    results_df = pd.DataFrame({
+        'Date': inference_dates,
+        'Actual': actual_original,
+        'Predicted': predictions_original,
+        'Error': actual_original - predictions_original,
+        'Abs_Error': np.abs(actual_original - predictions_original),
+        'Percentage_Error': np.abs((actual_original - predictions_original) / actual_original) * 100
+    })
+    
+    # Calculate metrics
+    from sklearn.metrics import mean_squared_error, mean_absolute_error
+    rmse = np.sqrt(mean_squared_error(actual_original, predictions_original))
+    mae = mean_absolute_error(actual_original, predictions_original)
+    mape = np.mean(np.abs((actual_original - predictions_original) / actual_original)) * 100
+    
+    print(f"\nMetrics for {ticker} (original scale):")
+    print(f"RMSE: {rmse:.4f}")
+    print(f"MAE: {mae:.4f}")
+    print(f"MAPE: {mape:.2f}%")
+    
+    # Save results
+    os.makedirs(output_dir, exist_ok=True)
+    timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+    ticker_clean = ticker.replace('.', '')
+    results_path = os.path.join(
+        output_dir,
+        f"{ticker_clean}_{model_type}_predictions_{timestamp}.csv"
+    )
+    results_df.to_csv(results_path, index=False)
+    print(f"Results saved to: {results_path}")
+    
+    # Clean up temp file
+    if os.path.exists(temp_csv_path):
+        os.remove(temp_csv_path)
+    
+    return predictions_original, actual_original, inference_dates
 
 def inference_multi_stock(
     tickers: list[str],
@@ -305,7 +389,7 @@ def inference_multi_stock(
 
 def main():
     # Mode selection
-    MODE = ["inference"]  # Options: "load", "train", "inference"
+    MODE = ["train", "inference"]  # Options: "load", "train", "inference"
     
     # Define tickers to use
     tickers = ["2330.TW", "AAPL"]
