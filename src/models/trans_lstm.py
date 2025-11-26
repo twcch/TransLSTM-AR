@@ -173,7 +173,7 @@ class TransLSTMModel(BaseModel):
             shuffle=True
         )
         return dataloader
-    
+
     def fit(
         self,
         X_train: pd.DataFrame,
@@ -224,24 +224,24 @@ class TransLSTMModel(BaseModel):
                 # Transformer encoder
                 encoder_output = self.transformer_encoder(embedded)  # [window_size, batch_size, d_model]
                 
-                # LSTM decoder with autoregressive prediction
-                predictions = []
-                hidden = None
+                # LSTM processes the entire encoder output
+                lstm_output, hidden = self.lstm(encoder_output)  # [window_size, batch_size, lstm_hidden]
                 
-                # Use last encoder output as initial input to LSTM
-                lstm_input = encoder_output[-1:, :, :]  # [1, batch_size, d_model]
+                # Autoregressive prediction for future steps
+                predictions = []
+                # Use the last encoder output for future predictions
+                current_input = encoder_output[-1:, :, :]  # [1, batch_size, d_model]
                 
                 for t in range(self.forecast_horizon):
-                    # LSTM step
-                    lstm_output, hidden = self.lstm(lstm_input, hidden)  # lstm_output: [1, batch_size, lstm_hidden]
+                    # LSTM step with current input
+                    lstm_out, hidden = self.lstm(current_input, hidden)  # [1, batch_size, lstm_hidden]
                     
                     # Predict next value
-                    pred = self.output_layer(lstm_output.squeeze(0))  # [batch_size, 1]
+                    pred = self.output_layer(lstm_out.squeeze(0))  # [batch_size, 1]
                     predictions.append(pred)
                     
-                    # Use prediction as next input (teacher forcing could be added here)
-                    # For now, we continue with the lstm output
-                    lstm_input = lstm_output
+                    # Keep using the same encoder output for next step
+                    # In a more sophisticated model, you could use pred to update current_input
                 
                 # Stack predictions
                 predictions = torch.cat(predictions, dim=1)  # [batch_size, forecast_horizon]
@@ -265,15 +265,15 @@ class TransLSTMModel(BaseModel):
                 
                 if (epoch + 1) % 10 == 0:
                     print(f"Epoch [{epoch+1}/{self.epochs}], "
-                          f"Train Loss: {avg_train_loss:.4f}, "
-                          f"Val Loss: {val_loss:.4f}")
+                        f"Train Loss: {avg_train_loss:.4f}, "
+                        f"Val Loss: {val_loss:.4f}")
             else:
                 if (epoch + 1) % 10 == 0:
                     print(f"Epoch [{epoch+1}/{self.epochs}], "
-                          f"Train Loss: {avg_train_loss:.4f}")
+                        f"Train Loss: {avg_train_loss:.4f}")
         
         return self
-    
+
     def _evaluate(self, X_tensor: torch.Tensor, y_tensor: torch.Tensor) -> float:
         """Evaluate the model on validation data."""
         self.input_embedding.eval()
@@ -290,15 +290,23 @@ class TransLSTMModel(BaseModel):
             embedded = self.pos_encoder(embedded)
             encoder_output = self.transformer_encoder(embedded)
             
+            # LSTM processes encoder output
+            lstm_output, hidden = self.lstm(encoder_output)
+            
+            # Autoregressive prediction for future steps
             predictions = []
-            hidden = None
-            lstm_input = encoder_output[-1:, :, :]
+            # Use the last encoder output for future predictions
+            current_input = encoder_output[-1:, :, :]  # [1, batch_size, d_model]
             
             for t in range(self.forecast_horizon):
-                lstm_output, hidden = self.lstm(lstm_input, hidden)
-                pred = self.output_layer(lstm_output.squeeze(0))
+                # LSTM step with current input
+                lstm_out, hidden = self.lstm(current_input, hidden)  # [1, batch_size, lstm_hidden]
+                
+                # Predict next value
+                pred = self.output_layer(lstm_out.squeeze(0))  # [batch_size, 1]
                 predictions.append(pred)
-                lstm_input = lstm_output
+                
+                # Keep using the same encoder output for next step
             
             predictions = torch.cat(predictions, dim=1)
             val_loss = self.criterion(predictions, y_tensor).item()
@@ -326,22 +334,31 @@ class TransLSTMModel(BaseModel):
             # Transpose to [window_size, batch_size, input_dim]
             X_tensor = X_tensor.transpose(0, 1)
             
-            # Forward pass
+            # Forward pass through transformer encoder
             embedded = self.input_embedding(X_tensor)
             embedded = self.pos_encoder(embedded)
             encoder_output = self.transformer_encoder(embedded)
             
+            # LSTM processes encoder output
+            lstm_output, hidden = self.lstm(encoder_output)
+            
+            # Autoregressive prediction for future steps
             predictions = []
-            hidden = None
-            lstm_input = encoder_output[-1:, :, :]
+            # Use the last encoder output for future predictions
+            current_input = encoder_output[-1:, :, :]  # [1, batch_size, d_model]
             
             for t in range(self.forecast_horizon):
-                lstm_output, hidden = self.lstm(lstm_input, hidden)
-                pred = self.output_layer(lstm_output.squeeze(0))
+                # LSTM step with current input
+                lstm_out, hidden = self.lstm(current_input, hidden)  # [1, batch_size, lstm_hidden]
+                
+                # Predict next value
+                pred = self.output_layer(lstm_out.squeeze(0))  # [batch_size, 1]
                 predictions.append(pred)
-                lstm_input = lstm_output
+                
+                # Keep using the same encoder output for next step
             
-            predictions = torch.cat(predictions, dim=1)
+            # Stack predictions
+            predictions = torch.cat(predictions, dim=1)  # [batch_size, forecast_horizon]
         
         return predictions.cpu().numpy()
     
