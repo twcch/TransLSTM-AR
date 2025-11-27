@@ -1,0 +1,37 @@
+============================================================
+Model Evaluation Results
+============================================================
+
+Model Configuration:
+------------------------------------------------------------
+Model Path: output/model/best_transformer_model.pth
+Sequence Length: 20
+Prediction Length: 10
+Target Column: Close_Scaled
+Device: mps
+
+Model Architecture:
+------------------------------------------------------------
+input_dim: 5
+output_dim: 1
+model_dim: 64
+num_heads: 4
+num_encoder_layers: 3
+num_decoder_layers: 3
+dropout: 0.1
+
+Evaluation Metrics:
+------------------------------------------------------------
+MSE (Mean Squared Error):      0.000907
+RMSE (Root Mean Squared Error): 0.030120
+MAE (Mean Absolute Error):      0.025922
+MAPE (Mean Absolute % Error):   2.85%
+R² Score:                       0.716823
+------------------------------------------------------------
+
+Data Summary:
+------------------------------------------------------------
+Total Predictions: 988
+Prediction Shape: (988, 10)
+Target Shape: (988, 10)
+============================================================

@@ -230,6 +230,48 @@ class ModelInference:
         print(f"Predictions saved! ({len(predictions_df)} rows)")
         print(f"Prediction shape: {predictions.shape}, Target shape: {targets.shape}")
 
+    def save_evaluation_metrics(self, results, output_path):
+        """保存評估指標到 txt 文件"""
+        print(f"\nSaving evaluation metrics to {output_path}...")
+        
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        with open(output_path, 'w') as f:
+            f.write("="*60 + "\n")
+            f.write("Model Evaluation Results\n")
+            f.write("="*60 + "\n\n")
+            
+            f.write("Model Configuration:\n")
+            f.write("-" * 60 + "\n")
+            f.write(f"Model Path: {self.model_path}\n")
+            f.write(f"Sequence Length: {self.seq_len}\n")
+            f.write(f"Prediction Length: {self.pred_len}\n")
+            f.write(f"Target Column: {self.target_col}\n")
+            f.write(f"Device: {self.device}\n\n")
+            
+            f.write("Model Architecture:\n")
+            f.write("-" * 60 + "\n")
+            for key, value in self.model_config.items():
+                f.write(f"{key}: {value}\n")
+            f.write("\n")
+            
+            f.write("Evaluation Metrics:\n")
+            f.write("-" * 60 + "\n")
+            f.write(f"MSE (Mean Squared Error):      {results['mse']:.6f}\n")
+            f.write(f"RMSE (Root Mean Squared Error): {results['rmse']:.6f}\n")
+            f.write(f"MAE (Mean Absolute Error):      {results['mae']:.6f}\n")
+            f.write(f"MAPE (Mean Absolute % Error):   {results['mape']:.2f}%\n")
+            f.write(f"R² Score:                       {results['r2_score']:.6f}\n")
+            f.write("-" * 60 + "\n\n")
+            
+            f.write("Data Summary:\n")
+            f.write("-" * 60 + "\n")
+            f.write(f"Total Predictions: {len(results['predictions'])}\n")
+            f.write(f"Prediction Shape: {results['predictions'].shape}\n")
+            f.write(f"Target Shape: {results['targets'].shape}\n")
+            f.write("="*60 + "\n")
+        
+        print(f"Evaluation metrics saved successfully!")
 
 if __name__ == "__main__":
     MODEL_PATH = "output/model/best_transformer_model.pth"
@@ -256,6 +298,11 @@ if __name__ == "__main__":
     inference.set_device(device)
     
     results = inference.evaluate()
+    inference.plot_predictions(num_samples=200, save_path=f"{OUTPUT_DIR}/predictions.png", show_plot=False)
+    inference.save_predictions(f"{OUTPUT_DIR}/predictions.csv")
+    
+    results = inference.evaluate()
+    inference.save_evaluation_metrics(results, f"{OUTPUT_DIR}/evaluation_metrics.txt")
     inference.plot_predictions(num_samples=200, save_path=f"{OUTPUT_DIR}/predictions.png", show_plot=False)
     inference.save_predictions(f"{OUTPUT_DIR}/predictions.csv")
     

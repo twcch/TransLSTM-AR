@@ -75,29 +75,46 @@ class ModelTrainer:
                 src = x_feat
                 batch_size = y.shape[0]
 
-                if len(y.shape) == 1:
+                # --- 1. 資料維度處理 ---
+                # 確保 y 的 shape 是 (Batch, Seq_Len, Feature_Dim)
+                if len(y.shape) == 2:
+                    # y 是 (Batch, Seq_Len)，需要加一個維度變成 (Batch, Seq_Len, 1)
                     y = y.unsqueeze(-1)
-                if len(y.shape) == 2 and y.shape[-1] == 1:
-                    tgt = torch.zeros(batch_size, 1, 1).to(self.device)
-                else:
-                    tgt = y.unsqueeze(-1)
+                elif len(y.shape) == 1:
+                    # y 是 (Batch,)，需要加兩個維度
+                    y = y.unsqueeze(-1).unsqueeze(-1)
+                
+                # 定義正確答案 (Target)
+                target = y  
+                feature_dim = y.shape[-1]
 
-                tgt_seq_len = tgt.shape[1]
+                # --- 2. 建構 Decoder Input (解決資料洩漏) ---
+                # Decoder Input 需要 Right Shift (向右位移) 並補上 SOS (Start of Sequence)
+                # 這裡使用全 0 向量作為 SOS
+                sos_token = torch.zeros(batch_size, 1, feature_dim).to(self.device)
+                
+                # 拼接：Input = [SOS, y_0, y_1, ..., y_{n-1}]
+                # y[:, :-1, :] 代表取除了最後一個時間點的所有數據
+                decoder_input = torch.cat([sos_token, y[:, :-1, :]], dim=1)
+
+                # --- 3. 產生遮罩 ---
+                tgt_seq_len = decoder_input.shape[1]
                 tgt_mask = nn.Transformer.generate_square_subsequent_mask(tgt_seq_len).to(self.device)
 
                 self.optimizer.zero_grad()
                 
                 try:
-                    output = self.model(src, tgt, tgt_mask=tgt_mask)
+                    # --- 4. Forward Pass ---
+                    # 注意：這裡傳入的是位移過的 decoder_input
+                    output = self.model(src, decoder_input, tgt_mask=tgt_mask)
                     
                     if torch.isnan(output).any() or torch.isinf(output).any():
                         print(f"Warning: NaN or Inf detected in output at epoch {epoch+1}")
                         continue
                     
-                    if len(y.shape) == 2 and y.shape[-1] == 1:
-                        loss = self.loss_fn(output.squeeze(-1), y.squeeze(-1))
-                    else:
-                        loss = self.loss_fn(output, y.unsqueeze(-1))
+                    # --- 5. 計算 Loss ---
+                    # 使用完整的 target 來計算 Loss
+                    loss = self.loss_fn(output, target)
                     
                     if torch.isnan(loss) or torch.isinf(loss):
                         print(f"Warning: Invalid loss at epoch {epoch+1}, skipping batch")
