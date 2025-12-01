@@ -124,45 +124,46 @@ def main():
     START_DATE = "2012-01-01"
     END_DATE = "2024-12-31"
 
-    SEQ_LEN = 30
+    SEQ_LEN = 60
     PRED_LEN = 5
     TRAIN_RATIO = 0.75
     VAL_RATIO = 0.15
 
     BATCH_SIZE = 64
 
+    # ✅ 修正：參數與模型實作一致（降低複雜度以避免過擬合與梯度問題）
     MODEL_CONFIGS = {
         "transformer": {
             "learning_rate": 0.0001,
-            "epochs": 100,
-            "early_stopping_patience": 30,
+            "epochs": 200,
+            "early_stopping_patience": 40,
             "model_params": {
-                "d_model": 128,
+                "d_model": 128,        # 降維：256 -> 128
                 "nhead": 4,
-                "num_encoder_layers": 3,
-                "num_decoder_layers": 3,
+                "num_encoder_layers": 3, # 減少層數：6 -> 3
+                "num_decoder_layers": 3, # 減少層數：6 -> 3
                 "dropout": 0.15,
             }
         },
         "lstm": {
-            "learning_rate": 0.0001,
-            "epochs": 100,
-            "early_stopping_patience": 30,
+            "learning_rate": 0.001,  # ✅ 提高學習率
+            "epochs": 300,
+            "early_stopping_patience": 50,
             "model_params": {
-                "hidden_dim": 128,
-                "num_layers": 3,
-                "dropout": 0.15,
-                "bidirectional": True,
+                "hidden_dim": 128,   # ✅ 增加容量
+                "num_layers": 2,     # ✅ 增加層數
+                "dropout": 0.2,      # ✅ 加入 Dropout
+                "bidirectional": False,
             }
         },
         "gru": {
             "learning_rate": 0.0001,
-            "epochs": 100,
-            "early_stopping_patience": 30,
+            "epochs": 200,
+            "early_stopping_patience": 40,
             "model_params": {
-                "hidden_dim": 128,
-                "num_layers": 3,
-                "dropout": 0.15,
+                "hidden_dim": 64,      # 降維：256 -> 64
+                "num_layers": 1,       # 修正：4 -> 1
+                "dropout": 0.0,        # 修正：0.2 -> 0.0
             }
         }
     }
@@ -234,16 +235,44 @@ def main():
         print(f"[INFO] Loaded featured data: {featured_data.shape}\n")
 
         feature_cols = [
-            'prev_log_close',
-            'prev_high',
-            'prev_low',
-            'prev_open',
-            'prev_volume',
-            'log_ret',
-            'vol_change',
-            'ma5_close_ratio',
-            'ma20_close_ratio',
-            'hl_range'
+            # 基礎價格特徵
+            'prev_log_close', 'prev_high', 'prev_low', 'prev_open', 'prev_volume',
+            
+            # 報酬率與成交量
+            'log_ret', 'vol_change',
+            
+            # 價格範圍
+            'hl_range', 'oc_range',
+            
+            # 移動平均比率
+            'ma5_close_ratio', 'ma10_close_ratio', 'ma20_close_ratio', 'ma60_close_ratio',
+            
+            # RSI
+            'rsi_14_norm',
+            
+            # MACD
+            'macd_norm', 'macd_histogram_norm',
+            
+            # 布林通道
+            'bb_position_20', 'bb_width_20',
+            
+            # ATR
+            'atr_14_norm',
+            
+            # 波動率
+            'volatility_5', 'volatility_20',
+            
+            # 動量
+            'momentum_5', 'momentum_10', 'momentum_20',
+            
+            # 價格位置
+            'price_position_20', 'price_position_60',
+            
+            # 成交量比率
+            'volume_ratio_5', 'volume_ratio_20',
+            
+            # 時間特徵
+            'day_of_week', 'is_monday', 'is_friday',
         ]
 
         datasets = {}
