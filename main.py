@@ -166,7 +166,7 @@ def main():
     # ✅ 修正：參數與模型實作一致（降低複雜度以避免過擬合與梯度問題）
     MODEL_CONFIGS = {
         "transformer": {
-            "learning_rate": 0.0001,
+            "learning_rate": 0.001,
             "epochs": 200,
             "early_stopping_patience": 40,
             "model_params": {
@@ -189,7 +189,7 @@ def main():
             }
         },
         "gru": {
-            "learning_rate": 0.0001,
+            "learning_rate": 0.001,
             "epochs": 200,
             "early_stopping_patience": 40,
             "model_params": {
