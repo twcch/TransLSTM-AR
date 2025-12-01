@@ -279,6 +279,14 @@ class Training:
         print(f"Prediction Horizon: {pred_len} days")
         print(f"{'='*60}\n")
 
+        # ✅ 提取 target_scalers
+        target_scalers = scalers.get('target_scalers', {})
+        
+        if not target_scalers:
+            print("[ERROR] No target_scalers found in scalers!")
+            print("[INFO] Available keys:", scalers.keys())
+            return {}
+
         # 檢查日期
         has_dates = False
         first_batch = next(iter(test_loader))
@@ -315,11 +323,19 @@ class Training:
                     rolling_preds.append(next_pred.squeeze(-1))  # [batch]
 
                     # ========== 更新輸入序列 ==========
+                    # ✅ 找到 prev_log_close 的索引
+                    if 'prev_log_close' in feature_cols:
+                        log_close_idx = feature_cols.index('prev_log_close')
+                    else:
+                        log_close_idx = 0  # 假設第一個特徵是 prev_log_close
+                    
                     next_step = torch.zeros(batch_size, 1, n_features, device=self.device)
-                    next_step[:, 0, 0] = next_pred.squeeze()  # log_close
+                    next_step[:, 0, log_close_idx] = next_pred.squeeze()
 
                     # 其他特徵用最後一個時間步的值
-                    next_step[:, 0, 1:] = current_input[:, -1, 1:]
+                    next_step[:, 0, :log_close_idx] = current_input[:, -1, :log_close_idx]
+                    if log_close_idx + 1 < n_features:
+                        next_step[:, 0, log_close_idx+1:] = current_input[:, -1, log_close_idx+1:]
 
                     # 滾動更新
                     current_input = torch.cat([
@@ -337,10 +353,10 @@ class Training:
         all_targets_scaled = np.concatenate(all_targets)
         all_ticker_ids = np.concatenate(all_ticker_ids)
 
-        # ========== 反標準化 ==========
-        preds_price, targets_price, ticker_names = self._inverse_transform(
+        # ========== 反標準化（使用 target_scalers）==========
+        preds_price, targets_price, ticker_names = self._inverse_transform_with_target_scaler(
             all_preds_scaled, all_targets_scaled, all_ticker_ids,
-            feature_cols, scalers, id2ticker, pred_len
+            target_scalers, id2ticker, pred_len
         )
 
         # ========== 計算指標 ==========
@@ -366,7 +382,7 @@ class Training:
 
     def _inverse_transform(self, preds_scaled, targets_scaled, ticker_ids, 
                           feature_cols, scalers, id2ticker, pred_len):
-        """反標準化 + exp"""
+        """反標準化（使用特徵 scaler）+ exp"""
         preds_price_list = []
         targets_price_list = []
         ticker_names = []
@@ -405,6 +421,61 @@ class Training:
                     inv_pred = scaler.inverse_transform(fake_pred)[0, 0]
                     inv_true = scaler.inverse_transform(fake_true)[0, 0]
 
+                    price_pred = math.exp(inv_pred)
+                    price_true = math.exp(inv_true)
+
+                    price_preds.append(price_pred)
+                    price_trues.append(price_true)
+                
+                preds_price_list.append(price_preds)
+                targets_price_list.append(price_trues)
+
+        preds_price = np.array(preds_price_list)
+        targets_price = np.array(targets_price_list)
+
+        return preds_price, targets_price, ticker_names
+
+    def _inverse_transform_with_target_scaler(self, preds_scaled, targets_scaled, ticker_ids,
+                                              target_scalers, id2ticker, pred_len):
+        """✅ 使用 target_scaler 反標準化（關鍵修正）"""
+        preds_price_list = []
+        targets_price_list = []
+        ticker_names = []
+
+        for s_pred, s_true, tid in zip(preds_scaled, targets_scaled, ticker_ids):
+            ticker = id2ticker[int(tid)]
+            ticker_names.append(ticker)
+            
+            # ✅ 獲取該股票的 target scaler 參數
+            if ticker not in target_scalers:
+                print(f"[WARNING] No target scaler for {ticker}, using default (0, 1)")
+                target_mean = 0.0
+                target_scale = 1.0
+            else:
+                target_mean = target_scalers[ticker]['mean']
+                target_scale = target_scalers[ticker]['scale']
+
+            if pred_len == 1:
+                # 反標準化
+                inv_pred = s_pred * target_scale + target_mean
+                inv_true = s_true * target_scale + target_mean
+
+                # 轉換回原始價格
+                price_pred = math.exp(inv_pred)
+                price_true = math.exp(inv_true)
+
+                preds_price_list.append(price_pred)
+                targets_price_list.append(price_true)
+            else:
+                price_preds = []
+                price_trues = []
+                
+                for day_idx in range(pred_len):
+                    # 反標準化
+                    inv_pred = s_pred[day_idx] * target_scale + target_mean
+                    inv_true = s_true[day_idx] * target_scale + target_mean
+
+                    # 轉換回原始價格
                     price_pred = math.exp(inv_pred)
                     price_true = math.exp(inv_true)
 
@@ -554,10 +625,16 @@ class Training:
                     n_plot = min(100, len(idx))
                     sel_idx = idx[:n_plot]
 
-                    # 準備 x 軸
+                    # ✅ 修正：準備 x 軸
                     if has_dates:
                         dates_for_ticker = [all_dates[i] for i in sel_idx]
-                        x_axis = pd.to_datetime(dates_for_ticker)
+                        
+                        # ✅ 關鍵修正：將 torch.Tensor 轉換為整數，再轉換為日期
+                        if isinstance(dates_for_ticker[0], torch.Tensor):
+                            dates_for_ticker = [int(d.item()) for d in dates_for_ticker]
+                        
+                        # 將整數轉換為日期（從 Unix timestamp）
+                        x_axis = pd.to_datetime(dates_for_ticker, unit='D', origin='unix')
                         x_label = "Date"
                         use_date_format = True
                     else:

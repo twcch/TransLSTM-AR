@@ -19,97 +19,66 @@ class SequenceBuilder:
         target_col='log_close',
         date_col='Date'
     ):
-        """
-        準備訓練、驗證和測試的 DataLoader，並修正資料洩漏問題。
-        
-        修正重點：
-        1. ✅ 先按時間分割原始資料（不重疊）
-        2. ✅ 只用訓練集 fit scaler
-        3. ✅ 分別對三個集合建立序列（確保時間不重疊）
-        4. ✅ 清理無限值和 NaN
-        5. ✅ 訓練集不 shuffle（保持時間順序）
-        """
+        """準備訓練、驗證和測試的 DataLoader"""
         tickers = df['Ticker'].unique()
         ticker2id = {t: i for i, t in enumerate(tickers)}
         id2ticker = {i: t for i, t in enumerate(tickers)}
         
-        train_X_list, train_y_list, train_id_list = [], [], []
-        val_X_list, val_y_list, val_id_list = [], [], []
-        test_X_list, test_y_list, test_id_list = [], [], []
+        train_X_list, train_y_list, train_id_list, train_date_list = [], [], [], []
+        val_X_list, val_y_list, val_id_list, val_date_list = [], [], [], []
+        test_X_list, test_y_list, test_id_list, test_date_list = [], [], [], []
         
         scalers = {}
-        
-        # 嘗試找到與 target 對應的 feature 欄位索引 (用於標準化 target)
-        target_feature_idx = -1
-        if 'prev_' + target_col in feature_cols:
-             target_feature_idx = feature_cols.index('prev_' + target_col)
-        elif target_col in feature_cols:
-             target_feature_idx = feature_cols.index(target_col)
+        target_scalers = {}  # ✅ 新增：為目標變數單獨保存 scaler 參數
         
         for ticker in tickers:
-            # 1. 取得該股票資料並排序
             ticker_df = df[df['Ticker'] == ticker].sort_values(by=date_col).reset_index(drop=True)
             
             if len(ticker_df) < self.seq_len + self.pred_len:
-                print(f"[WARNING] {ticker} data too short, skipping.")
+                print(f"[WARNING] {ticker} data too short ({len(ticker_df)} rows), skipping.")
                 continue
             
-            # 2. ✅ 修正：計算分割點（確保不重疊）
             total_len = len(ticker_df)
-            
-            # 為了避免重疊，需要預留 buffer
-            # buffer = seq_len，確保驗證集和測試集的第一個序列完全在該時段內
-            buffer_size = self.seq_len
-            
-            # 計算實際可用的資料長度（扣除最後一個序列需要的 pred_len）
             usable_len = total_len - self.pred_len
             
-            # 分割點（基於可用長度）
             train_end = int(usable_len * train_ratio)
             val_end = int(usable_len * (train_ratio + val_ratio))
             
-            # 確保每個集合都有足夠的資料建立至少一個序列
             min_samples = self.seq_len + self.pred_len
             if train_end < min_samples:
-                print(f"[WARNING] {ticker} training set too short, skipping.")
+                print(f"[WARNING] {ticker} insufficient training data, skipping.")
                 continue
             if (val_end - train_end) < min_samples:
-                print(f"[WARNING] {ticker} validation set too short, skipping.")
+                print(f"[WARNING] {ticker} insufficient validation data, skipping.")
                 continue
             if (total_len - val_end) < min_samples:
-                print(f"[WARNING] {ticker} test set too short, skipping.")
+                print(f"[WARNING] {ticker} insufficient test data, skipping.")
                 continue
             
-            # 3. ✅ 提取特徵矩陣並清理無限值
+            # ========== 處理特徵 ==========
             feature_data = ticker_df[feature_cols].values
-            
-            # 將 inf 替換為 NaN
             feature_data = np.where(np.isinf(feature_data), np.nan, feature_data)
             
-            # 用訓練集的中位數填充 NaN（避免使用未來資訊）
+            # 用訓練集的中位數填充 NaN
             for col_idx in range(feature_data.shape[1]):
                 col = feature_data[:, col_idx]
                 if np.isnan(col).any():
-                    # ✅ 只使用訓練集的統計量
                     train_col = col[:train_end]
                     median_val = np.nanmedian(train_col)
                     if np.isnan(median_val):
                         median_val = 0.0
                     feature_data[:, col_idx] = np.where(np.isnan(col), median_val, col)
             
-            # 4. ✅ 只在訓練集上 Fit Scaler
+            # ✅ 只在訓練集上 Fit Scaler
             scaler = StandardScaler()
             scaler.fit(feature_data[:train_end])
-            
-            # 用訓練集的參數 transform 整份資料
             feature_data_scaled = scaler.transform(feature_data)
             scalers[ticker] = scaler
             
-            # 5. 處理 Target 的標準化
+            # ========== 處理目標變數（關鍵修正）==========
             target_data = ticker_df[target_col].values
-            
-            # 清理 target 的無限值
             target_data = np.where(np.isinf(target_data), np.nan, target_data)
+            
             if np.isnan(target_data).any():
                 train_target = target_data[:train_end]
                 median_target = np.nanmedian(train_target)
@@ -117,99 +86,124 @@ class SequenceBuilder:
                     median_target = 0.0
                 target_data = np.where(np.isnan(target_data), median_target, target_data)
             
-            if target_feature_idx >= 0:
-                mean = scaler.mean_[target_feature_idx]
-                scale = scaler.scale_[target_feature_idx]
-                target_data_scaled = (target_data - mean) / scale
-            else:
-                # 如果找不到對應特徵，單獨訓練一個 scaler
-                target_scaler = StandardScaler()
-                target_scaler.fit(target_data[:train_end].reshape(-1, 1))
-                target_data_scaled = target_scaler.transform(target_data.reshape(-1, 1)).flatten()
-                print(f"[INFO] {ticker}: Using separate scaler for target.")
-
-            # 6. ✅ 修正：分別對三個**不重疊**的時間段建立序列
+            # ✅ 為目標變數單獨創建 scaler（使用訓練集的統計量）
+            target_scaler = StandardScaler()
+            target_scaler.fit(target_data[:train_end].reshape(-1, 1))
+            target_data_scaled = target_scaler.transform(target_data.reshape(-1, 1)).flatten()
             
-            # 訓練集：從 0 到 train_end + pred_len（確保最後一個序列完整）
+            # ✅ 保存目標變數的 scaler 參數
+            target_scalers[ticker] = {
+                'mean': float(target_scaler.mean_[0]),
+                'scale': float(target_scaler.scale_[0])
+            }
+            
+            print(f"[INFO] {ticker} - Target scaler: mean={target_scalers[ticker]['mean']:.6f}, scale={target_scalers[ticker]['scale']:.6f}")
+
+            # ========== 準備日期 ==========
+            dates = ticker_df[date_col].values
+
+            # ========== 訓練集 ==========
             train_data = feature_data_scaled[:train_end + self.pred_len]
             train_target = target_data_scaled[:train_end + self.pred_len]
-            train_X, train_y = self._create_sequences(train_data, train_target)
+            train_dates = dates[:train_end + self.pred_len]
+            
+            train_X, train_y, train_date = self._create_sequences(
+                train_data, train_target, train_dates
+            )
             
             if len(train_X) > 0:
                 train_X_list.append(train_X)
                 train_y_list.append(train_y)
                 train_id_list.append(np.full(len(train_X), ticker2id[ticker]))
-                print(f"[INFO] {ticker} Train: {len(train_X)} sequences (data range: 0 to {train_end + self.pred_len})")
+                train_date_list.append(train_date)
+                print(f"[INFO] {ticker} Train: {len(train_X)} sequences")
             
-            # 驗證集：從 train_end 到 val_end + pred_len
-            # ✅ 關鍵修正：不往前取，直接從 train_end 開始
+            # ========== 驗證集 ==========
             val_data = feature_data_scaled[train_end:val_end + self.pred_len]
             val_target = target_data_scaled[train_end:val_end + self.pred_len]
-            val_X, val_y = self._create_sequences(val_data, val_target)
+            val_dates = dates[train_end:val_end + self.pred_len]
+            
+            val_X, val_y, val_date = self._create_sequences(
+                val_data, val_target, val_dates
+            )
             
             if len(val_X) > 0:
                 val_X_list.append(val_X)
                 val_y_list.append(val_y)
                 val_id_list.append(np.full(len(val_X), ticker2id[ticker]))
-                print(f"[INFO] {ticker} Val:   {len(val_X)} sequences (data range: {train_end} to {val_end + self.pred_len})")
+                val_date_list.append(val_date)
+                print(f"[INFO] {ticker} Val:   {len(val_X)} sequences")
             
-            # 測試集：從 val_end 到結尾
+            # ========== 測試集 ==========
             test_data = feature_data_scaled[val_end:]
             test_target = target_data_scaled[val_end:]
-            test_X, test_y = self._create_sequences(test_data, test_target)
+            test_dates = dates[val_end:]
+            
+            test_X, test_y, test_date = self._create_sequences(
+                test_data, test_target, test_dates
+            )
             
             if len(test_X) > 0:
                 test_X_list.append(test_X)
                 test_y_list.append(test_y)
                 test_id_list.append(np.full(len(test_X), ticker2id[ticker]))
-                print(f"[INFO] {ticker} Test:  {len(test_X)} sequences (data range: {val_end} to {total_len})")
+                test_date_list.append(test_date)
+                print(f"[INFO] {ticker} Test:  {len(test_X)} sequences")
 
-        # 7. ✅ 建立 DataLoader（訓練集也不 shuffle）
-        train_loader = self._create_loader(train_X_list, train_y_list, train_id_list, batch_size, shuffle=False)
-        val_loader = self._create_loader(val_X_list, val_y_list, val_id_list, batch_size, shuffle=False)
-        test_loader = self._create_loader(test_X_list, test_y_list, test_id_list, batch_size, shuffle=False)
+        # ========== 創建 DataLoader ==========
+        train_loader = self._create_loader(
+            train_X_list, train_y_list, train_id_list, train_date_list, 
+            batch_size, shuffle=False
+        )
+        val_loader = self._create_loader(
+            val_X_list, val_y_list, val_id_list, val_date_list,
+            batch_size, shuffle=False
+        )
+        test_loader = self._create_loader(
+            test_X_list, test_y_list, test_id_list, test_date_list,
+            batch_size, shuffle=False
+        )
         
-        # 檢查是否成功建立資料集
-        if train_loader is None:
-            print("[ERROR] No training data available!")
-        else:
-            print(f"\n[INFO] Total training batches: {len(train_loader)}")
-        if val_loader is None:
-            print("[WARNING] No validation data available!")
-        else:
-            print(f"[INFO] Total validation batches: {len(val_loader)}")
-        if test_loader is None:
-            print("[WARNING] No test data available!")
-        else:
-            print(f"[INFO] Total test batches: {len(test_loader)}\n")
+        # ✅ 將 target_scalers 也一起返回
+        scalers['target_scalers'] = target_scalers
+        
+        print(f"\n[INFO] Total target scalers saved: {len(target_scalers)}")
         
         return train_loader, val_loader, test_loader, scalers, ticker2id, id2ticker
 
-    def _create_sequences(self, data, targets):
-        """
-        建立時間序列資料
-        X: [t, t+1, ..., t+seq_len-1]
-        y: [t+seq_len, ..., t+seq_len+pred_len-1]
-        """
-        X, y = [], []
-        # 確保有足夠的資料長度來建立一個完整的序列和預測區間
+    def _create_sequences(self, data, targets, dates):
+        """創建序列數據"""
+        X, y, date_list = [], [], []
+        
         for i in range(len(data) - self.seq_len - self.pred_len + 1):
             X.append(data[i : i + self.seq_len])
             y.append(targets[i + self.seq_len : i + self.seq_len + self.pred_len])
             
-        return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
+            # 記錄序列的最後一天日期（用於繪圖）
+            date_list.append(dates[i + self.seq_len - 1])
+            
+        return (
+            np.array(X, dtype=np.float32), 
+            np.array(y, dtype=np.float32),
+            np.array(date_list)
+        )
 
-    def _create_loader(self, X_list, y_list, id_list, batch_size, shuffle):
+    def _create_loader(self, X_list, y_list, id_list, date_list, batch_size, shuffle):
+        """創建 DataLoader"""
         if not X_list:
+            print("[WARNING] No data for loader")
             return None
         
         X = np.concatenate(X_list)
         y = np.concatenate(y_list)
         ids = np.concatenate(id_list)
+        dates = np.concatenate(date_list)
         
         dataset = TensorDataset(
             torch.from_numpy(X),
             torch.from_numpy(y),
-            torch.from_numpy(ids)
+            torch.from_numpy(ids),
+            torch.from_numpy(dates.astype('datetime64[D]').astype(np.int64))  # 轉換日期為整數
         )
+        
         return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)

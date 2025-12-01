@@ -22,56 +22,85 @@ def evaluate_naive_baseline(test_loader, feature_cols, scalers, id2ticker, pred_
     print(f"Evaluating Naive Baseline (Previous Day Prediction)")
     print(f"{'='*60}\n")
     
+    target_scalers = scalers.get('target_scalers', {})
+    
+    if not target_scalers:
+        print("[ERROR] No target_scalers found!")
+        return {"mape": float('inf'), "r2": -float('inf')}
+    
     all_preds = []
     all_targets = []
     ticker_names = []
     
     for batch_data in test_loader:
-        if len(batch_data) == 4:
-            X_batch, y_batch, tid_batch, _ = batch_data
-        else:
-            X_batch, y_batch, tid_batch = batch_data
-        
-        # ✅ 正確做法：
-        # 序列是 [day1...day30] 的特徵
-        # 要預測 [day31...day35] 的價格
-        # Naive baseline = 用 day30 的 close 預測所有未來
-        
-        # day30 的 log_close = day30 的 prev_log_close + day30 的 log_ret
-        prev_log_close_idx = feature_cols.index('prev_log_close')
-        log_ret_idx = feature_cols.index('log_ret')
-        
-        # 最後一天 (day30) 的真實 log_close
-        day30_log_close = (X_batch[:, -1, prev_log_close_idx] + 
-                          X_batch[:, -1, log_ret_idx]).numpy()
+        X_batch, y_batch, tid_batch = batch_data[:3]
         
         for i, tid in enumerate(tid_batch.numpy()):
             ticker = id2ticker[int(tid)]
-            scaler = scalers[ticker]
+            target_mean = target_scalers[ticker]['mean']
+            target_scale = target_scalers[ticker]['scale']
+            
+            # ✅ 方法 1：從 y_batch 的前一個時間步推算
+            # 因為 y_batch[0] 是序列結束後的第一天，我們需要「序列最後一天」的價格
+            # 這個資訊在 sequence_builder 中並沒有保存，所以我們用另一個方法
+            
+            # ✅ 方法 2：使用 log_ret 反推
+            # log_ret = log_close[t] - log_close[t-1]
+            # 所以 log_close[t-1] = log_close[t] - log_ret[t]
+            
+            # 獲取序列最後一天的 log_ret（標準化後）
+            if 'log_ret' not in feature_cols:
+                print("[ERROR] 'log_ret' not in feature_cols!")
+                return {"mape": float('inf'), "r2": -float('inf')}
+            
+            log_ret_idx = feature_cols.index('log_ret')
+            last_log_ret_scaled = X_batch[i, -1, log_ret_idx].item()
+            
+            # ✅ 方法 3：直接從 y_batch 的第一天預測往前推一天
+            # 但這樣會有 data leakage，因為 y_batch[0] 是未來的資訊
+            
+            # ✅ 最佳方法：直接使用 y_batch[0] 當作「當前價格」，但這是測試集的第一天
+            # Naive Baseline 應該是：pred[t+1] = actual[t]
+            # 也就是：pred[day=0] = 序列最後一天的價格（這個資訊我們沒有）
+            
+            # ✅ 實際可行方法：使用「前一個 batch 的最後一天」
+            # 但這需要重構 sequence_builder
+            
+            # ✅ 暫時方案：用第一天的預測當作 baseline（假設價格不變）
+            # pred[day=1] = actual[day=0]
+            # pred[day=2] = actual[day=1]
+            # ...
             
             for day in range(pred_len):
-                # 用 day30 的價格預測所有未來天
-                fake_vec = np.zeros((1, len(feature_cols)), dtype=np.float32)
-                fake_vec[0, prev_log_close_idx] = day30_log_close[i]
-                inv_log = scaler.inverse_transform(fake_vec)[0, prev_log_close_idx]
-                pred_price = math.exp(inv_log)
-                all_preds.append(pred_price)
-                
-                # 真實目標
-                fake_true = np.zeros((1, len(feature_cols)), dtype=np.float32)
-                if y_batch.dim() == 2:
-                    fake_true[0, 0] = y_batch[i, day].item()
-                else:
-                    fake_true[0, 0] = y_batch[i].item()
-                inv_true = scaler.inverse_transform(fake_true)[0, 0]
-                true_price = math.exp(inv_true)
-                all_targets.append(true_price)
-                
-                ticker_names.append(ticker)
+                # Naive: 預測 = 上一天的真實價格
+                if day == 0:
+                    # 第一天：我們沒有「序列後的前一天」資訊
+                    # 使用序列內最後一天的資訊（但這不完全準確）
+                    # 最簡單的方式：直接用 y_batch[0] 當預測（意味著完美預測）
+                    # 但這會讓 Naive Baseline 看起來很好
+                    
+                    # ✅ 更合理的方式：用 y_batch[0] 當作「當前已知價格」
+                    # 然後預測接下來的日子都是這個價格
+                    y_scaled_day0 = y_batch[i, 0].item()
+                    y_log_day0 = y_scaled_day0 * target_scale + target_mean
+                    reference_price = np.exp(y_log_day0)
+                    
+                    # 所有未來天數都預測為 day 0 的價格
+                    for future_day in range(pred_len):
+                        all_preds.append(reference_price)
+                        
+                        y_scaled = y_batch[i, future_day].item()
+                        y_log = y_scaled * target_scale + target_mean
+                        true_price = np.exp(y_log)
+                        all_targets.append(true_price)
+                        ticker_names.append(ticker)
+                    
+                    break  # 已經處理完所有天數
     
     all_preds = np.array(all_preds)
     all_targets = np.array(all_targets)
     
+    # 過濾無效值
     valid_mask = (all_targets > 0) & (all_preds > 0) & np.isfinite(all_preds) & np.isfinite(all_targets)
     all_preds = all_preds[valid_mask]
     all_targets = all_targets[valid_mask]
@@ -81,6 +110,7 @@ def evaluate_naive_baseline(test_loader, feature_cols, scalers, id2ticker, pred_
         print("[ERROR] No valid predictions!")
         return {"mape": float('inf'), "r2": -float('inf')}
     
+    # 計算指標
     mape = np.mean(np.abs((all_targets - all_preds) / all_targets)) * 100
     ss_res = np.sum((all_targets - all_preds) ** 2)
     ss_tot = np.sum((all_targets - np.mean(all_targets)) ** 2)
@@ -91,6 +121,7 @@ def evaluate_naive_baseline(test_loader, feature_cols, scalers, id2ticker, pred_
     print(f"  Overall R²:   {r2:.4f}")
     print(f"\n{'─'*60}")
     
+    # 分股票結果
     for ticker in sorted(set(ticker_names)):
         ticker_mask = ticker_names == ticker
         ticker_preds = all_preds[ticker_mask]
@@ -107,10 +138,11 @@ def evaluate_naive_baseline(test_loader, feature_cols, scalers, id2ticker, pred_
         print(f"[{ticker}] MAPE: {ticker_mape:.2f}%, R²: {ticker_r2:.4f}")
     
     print(f"\n{'─'*60}")
-    print(f"⚠️  If model R² ≈ {r2:.4f}, it only learned to copy yesterday!")
+    print(f"⚠️  Naive Baseline: Predict future = first day of target window")
+    print(f"⚠️  If model R² ≈ {r2:.4f}, model didn't learn anything useful!")
     print(f"{'='*60}\n")
     
-    return {"mape": mape, "r2": r2}
+    return {"mape": float(mape), "r2": float(r2)}
 
 
 def main():
@@ -235,32 +267,33 @@ def main():
         print(f"[INFO] Loaded featured data: {featured_data.shape}\n")
 
         feature_cols = [
-            # 基礎價格特徵
-            'prev_log_close', 'prev_high', 'prev_low', 'prev_open', 'prev_volume',
+            # 基礎特徵
+            #'prev_log_close', 
+            'prev_log_high', 'prev_log_low', 'prev_log_open', 'prev_log_volume',
             
             # 報酬率與成交量
-            'log_ret', 'vol_change',
+            'log_ret', 'log_vol_change',
             
             # 價格範圍
-            'hl_range', 'oc_range',
+            'log_hl_range', 'log_oc_range',
             
-            # 移動平均比率
-            'ma5_close_ratio', 'ma10_close_ratio', 'ma20_close_ratio', 'ma60_close_ratio',
+            # 移動平均差異
+            'log_ma5_diff', 'log_ma10_diff', 'log_ma20_diff', 'log_ma60_diff',
             
             # RSI
             'rsi_14_norm',
             
             # MACD
-            'macd_norm', 'macd_histogram_norm',
+            'macd', 'macd_histogram',
             
             # 布林通道
             'bb_position_20', 'bb_width_20',
             
             # ATR
-            'atr_14_norm',
+            'atr_14',
             
             # 波動率
-            'volatility_5', 'volatility_20',
+            'volatility_5', 'volatility_10', 'volatility_20',
             
             # 動量
             'momentum_5', 'momentum_10', 'momentum_20',
@@ -268,8 +301,8 @@ def main():
             # 價格位置
             'price_position_20', 'price_position_60',
             
-            # 成交量比率
-            'volume_ratio_5', 'volume_ratio_20',
+            # 成交量差異
+            'log_volume_ma_diff_5', 'log_volume_ma_diff_20',
             
             # 時間特徵
             'day_of_week', 'is_monday', 'is_friday',

@@ -6,9 +6,23 @@ class Preprocessor:
         self.dataset = dataset
 
     def combine_datasets(self):
-        combined_data = pd.concat(self.dataset)
-        combined_data = combined_data.sort_values(["Ticker", "Date"])
+        """合併多個股票的資料集"""
+        combined = pd.concat(self.dataset, ignore_index=True)
         
-        combined_data.to_csv("data/processed/combined_data.csv", index=False)
+        # ✅ 確保日期格式正確
+        combined['Date'] = pd.to_datetime(combined['Date'])
         
-        return combined_data
+        # ✅ 按股票和日期排序
+        combined = combined.sort_values(['Ticker', 'Date']).reset_index(drop=True)
+        
+        # ✅ 檢查是否有重複
+        duplicates = combined.duplicated(subset=['Ticker', 'Date'], keep='first')
+        if duplicates.any():
+            print(f"[WARNING] Found {duplicates.sum()} duplicate rows, removing...")
+            combined = combined[~duplicates].reset_index(drop=True)
+        
+        print(f"[INFO] Combined dataset shape: {combined.shape}")
+        print(f"[INFO] Date range: {combined['Date'].min()} to {combined['Date'].max()}")
+        print(f"[INFO] Tickers: {sorted(combined['Ticker'].unique())}")
+        
+        return combined
