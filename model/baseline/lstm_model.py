@@ -6,118 +6,114 @@ class LSTMModel(nn.Module):
     def __init__(
         self, 
         input_dim, 
-        hidden_dim=128,        # ✅ 降低複雜度（從 256 降到 128）
-        num_layers=2,          # ✅ 降低層數（從 3 降到 2）
+        hidden_dim=64,         # ✅ 大幅降低（從 128 降到 64）
+        num_layers=1,          # ✅ 只用 1 層（LSTM 容易梯度問題）
         output_dim=1, 
         pred_len=5, 
-        dropout=0.2,           # ✅ 降低 dropout（從 0.3 降到 0.2）
-        bidirectional=False    # ✅ 移除雙向（過於複雜）
+        dropout=0.0,           # ✅ 移除 dropout（單層不需要）
+        bidirectional=False
     ):
         """
-        簡化版 LSTM 模型
+        極簡版 LSTM - 解決梯度問題
         
-        核心理念：
-        1. ❌ 不要雙向 LSTM（未來資訊洩漏 + 過度複雜）
-        2. ❌ 不要 Attention（LSTM 已有記憶機制）
-        3. ✅ 使用 Teacher Forcing（訓練時用真實值）
-        4. ✅ 簡單的多步預測（直接輸出 5 個值）
-        
-        Args:
-            input_dim: 輸入特徵維度 (10)
-            hidden_dim: LSTM 隱藏層維度 (128)
-            num_layers: LSTM 層數 (2)
-            output_dim: 輸出維度 (1)
-            pred_len: 預測天數 (5)
-            dropout: Dropout 率 (0.2)
-            bidirectional: 是否雙向（固定 False）
+        核心策略：
+        1. ✅ 降低複雜度（單層 + 小 hidden_dim）
+        2. ✅ 移除 dropout（避免訓練不穩定）
+        3. ✅ Layer Normalization（穩定梯度）
+        4. ✅ Residual Connection（緩解梯度消失）
         """
         super(LSTMModel, self).__init__()
         self.pred_len = pred_len
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         
-        # ========== 1. Simple LSTM ==========
+        # ========== Input Layer Norm ==========
+        self.input_norm = nn.LayerNorm(input_dim)
+        
+        # ========== LSTM ==========
         self.lstm = nn.LSTM(
             input_dim, 
             hidden_dim, 
             num_layers, 
             batch_first=True,
-            dropout=dropout if num_layers > 1 else 0,
-            bidirectional=False  # ✅ 單向
+            dropout=0.0  # 單層不用 dropout
         )
         
-        # ========== 2. Layer Normalization ==========
+        # ========== Layer Norm (穩定 LSTM 輸出) ==========
         self.layer_norm = nn.LayerNorm(hidden_dim)
         
-        # ========== 3. Simple Output Head ==========
-        # 使用一個簡單的 MLP 直接輸出 5 天預測
+        # ========== Output Head (極簡設計) ==========
         self.output_head = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim // 2),
             nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(hidden_dim, pred_len * output_dim)
+            nn.LayerNorm(hidden_dim // 2),
+            nn.Linear(hidden_dim // 2, pred_len * output_dim)
         )
         
-        # ========== 4. 初始化權重 ==========
+        # ========== Residual Projection (選用) ==========
+        if input_dim != hidden_dim:
+            self.residual_proj = nn.Linear(input_dim, hidden_dim)
+        else:
+            self.residual_proj = None
+        
         self._init_weights()
     
     def _init_weights(self):
-        """Xavier Uniform 初始化"""
+        """保守的權重初始化（避免梯度爆炸）"""
         for name, param in self.named_parameters():
             if 'lstm' in name:
                 if 'weight_ih' in name:
-                    nn.init.xavier_uniform_(param.data)
+                    nn.init.xavier_uniform_(param.data, gain=0.5)  # ✅ gain < 1
                 elif 'weight_hh' in name:
-                    nn.init.orthogonal_(param.data)
+                    nn.init.orthogonal_(param.data, gain=0.5)      # ✅ gain < 1
                 elif 'bias' in name:
                     param.data.fill_(0)
-                    # LSTM forget gate bias 初始化為 1
                     n = param.size(0)
-                    param.data[(n//4):(n//2)].fill_(1)
+                    param.data[(n//4):(n//2)].fill_(1)  # forget gate bias = 1
             elif 'weight' in name and param.dim() > 1:
-                nn.init.xavier_uniform_(param)
+                nn.init.xavier_uniform_(param, gain=0.5)
             elif 'bias' in name:
                 nn.init.zeros_(param)
     
     def forward(self, x):
         """
-        Forward pass
-        
         Args:
             x: [batch, seq_len, input_dim]
-               例如 [32, 45, 10]
         
         Returns:
-            predictions: [batch, pred_len]
-                        例如 [32, 5]
+            [batch, pred_len]
         """
         batch_size = x.size(0)
         
-        # ========== Step 1: LSTM ==========
+        # ========== Input Normalization ==========
+        x = self.input_norm(x)
+        
+        # ========== LSTM ==========
         lstm_out, (h_n, c_n) = self.lstm(x)
         # lstm_out: [batch, seq_len, hidden_dim]
-        # h_n: [num_layers, batch, hidden_dim]
         
-        # ========== Step 2: 使用最後一個時間步 ==========
+        # ========== 使用最後時間步 ==========
         last_hidden = lstm_out[:, -1, :]  # [batch, hidden_dim]
         last_hidden = self.layer_norm(last_hidden)
         
-        # ========== Step 3: 直接輸出 5 天預測 ==========
+        # ========== Residual Connection (選用) ==========
+        if self.residual_proj is not None:
+            residual = self.residual_proj(x[:, -1, :])
+            last_hidden = last_hidden + residual
+        
+        # ========== Output ==========
         output = self.output_head(last_hidden)  # [batch, pred_len]
         
         return output
 
 
-# ========== 測試代碼 ==========
+# ========== 測試 ==========
 if __name__ == "__main__":
     model = LSTMModel(
         input_dim=10,
-        hidden_dim=128,
-        num_layers=2,
-        output_dim=1,
+        hidden_dim=64,
+        num_layers=1,
         pred_len=5,
-        dropout=0.2,
-        bidirectional=False
     )
     
     x = torch.randn(32, 45, 10)
@@ -125,9 +121,4 @@ if __name__ == "__main__":
     
     print(f"Input shape:  {x.shape}")
     print(f"Output shape: {output.shape}")
-    print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
-    
-    # 預期輸出:
-    # Input shape:  torch.Size([32, 45, 10])
-    # Output shape: torch.Size([32, 5])
-    # Model parameters: ~200,000
+    print(f"Parameters: {sum(p.numel() for p in model.parameters()):,}")

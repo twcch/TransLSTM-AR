@@ -136,25 +136,25 @@ def main():
     # ========== Model Configurations ==========
     MODEL_CONFIGS = {
         "transformer": {
-            "learning_rate": 0.00003,      # ✅ 降低學習率
-            "epochs": 400,                 # ✅ 增加訓練時間
-            "early_stopping_patience": 60, # ✅ 更大耐心
+            "learning_rate": 0.0001,      # ✅ 降低學習率
+            "epochs": 200,                 # ✅ 增加訓練時間
+            "early_stopping_patience": 40, # ✅ 更大耐心
             "model_params": {
                 "d_model": 256,            # 保持
-                "nhead": 8,                # 保持
-                "num_encoder_layers": 4,   # Encoder 4 層
-                "num_decoder_layers": 6,   # ✅ Decoder 增加到 6 層
+                "nhead": 4,                # 保持
+                "num_encoder_layers": 6,   # Encoder 4 層
+                "num_decoder_layers": 4,   # ✅ Decoder 增加到 6 層
                 "dropout": 0.15,           # ✅ 降低 dropout
             }
         },
         "lstm": {
-            "learning_rate": 0.0001,       # ✅ 提高學習率（從 0.00003 提高到 0.0001）
-            "epochs": 150,                 # ✅ 減少訓練時間（從 300 降到 150）
-            "early_stopping_patience": 25, # ✅ 更小耐心（從 50 降到 25）
+            "learning_rate": 0.001,       # ✅ 提高學習率（從 0.00003 提高到 0.0001）
+            "epochs": 100,                 # ✅ 減少訓練時間（從 300 降到 150）
+            "early_stopping_patience": 15, # ✅ 更小耐心（從 50 降到 25）
             "model_params": {
-                "hidden_dim": 128,         # ✅ 降低隱藏層維度（從 256 降到 128）
-                "num_layers": 2,           # ✅ 降低層數（從 3 降到 2）
-                "dropout": 0.2,            # ✅ 降低 dropout（從 0.3 降到 0.2）
+                "hidden_dim": 64,         # ✅ 降低隱藏層維度（從 256 降到 128）
+                "num_layers": 1,           # ✅ 降低層數（從 3 降到 2）
+                "dropout": 0.0,            # ✅ 降低 dropout（從 0.3 降到 0.2）
                 "bidirectional": False,    # ✅ 移除雙向
             }
         },
