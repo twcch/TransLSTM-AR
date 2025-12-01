@@ -11,16 +11,26 @@ from pipeline.build_feature import FeatureEngineering
 from pipeline.sequence_builder import SequenceBuilder
 from pipeline.training import Training
 
-# ✅ 新增: 導入 Encoder-Decoder Transformer
+# ✅ 導入模型
 from model.baseline.transformer_model import TransformerEncoderDecoderModel
 from model.baseline.lstm_model import LSTMModel
 from model.baseline.gru_model import GRUModel
 
 
-def evaluate_naive_baseline(test_loader, feature_cols, scalers, id2ticker, pred_len=1):
+def evaluate_naive_baseline(test_loader, feature_cols, scalers, id2ticker, pred_len=5):
     """
     評估 Naive Baseline: 使用前一天的價格作為預測
     如果模型的 R² 接近這個值，表示只學到了「複製前一天」
+    
+    Args:
+        test_loader: 測試資料 DataLoader
+        feature_cols: 特徵欄位列表
+        scalers: 各 ticker 的 scaler 字典
+        id2ticker: ticker ID 到名稱的映射
+        pred_len: 預測天數 (5)
+    
+    Returns:
+        dict: {"mape": float, "r2": float}
     """
     print(f"\n{'='*60}")
     print(f"Evaluating Naive Baseline (Previous Day Prediction)")
@@ -52,12 +62,12 @@ def evaluate_naive_baseline(test_loader, feature_cols, scalers, id2ticker, pred_
             pred_price = math.exp(inv_log)
             all_preds.append(pred_price)
             
-            # 真實值
+            # 真實值（只取 Day 1）
             fake_true = np.zeros((1, len(feature_cols)), dtype=np.float32)
             if y_batch.dim() == 1:
                 fake_true[0, 0] = y_batch[i].item()
             else:
-                fake_true[0, 0] = y_batch[i, 0].item()  # 只取 day_1
+                fake_true[0, 0] = y_batch[i, 0].item()  # Day 1
             inv_true = scaler.inverse_transform(fake_true)[0, 0]
             true_price = math.exp(inv_true)
             all_targets.append(true_price)
@@ -101,6 +111,8 @@ def evaluate_naive_baseline(test_loader, feature_cols, scalers, id2ticker, pred_
 
 
 def main():
+    # ========== Configuration ==========
+    
     # Options: "load", "preprocessing", "feature_engineering", "train", "test"
     MODE = ["train", "test"]
 
@@ -112,37 +124,38 @@ def main():
     START_DATE = "2012-01-01"
     END_DATE = "2024-12-31"
 
-    SEQ_LEN = 60
-    LSTM_SEQ_LEN = 45  # LSTM 使用較短序列
-    PRED_LEN = 5
+    SEQ_LEN = 60          # Transformer & GRU 使用 60
+    LSTM_SEQ_LEN = 45     # LSTM 使用較短序列 45
+    PRED_LEN = 5          # 預測未來 5 天
     TRAIN_RATIO = 0.75
     VAL_RATIO = 0.15
     TEST_RATIO = 1 - TRAIN_RATIO - VAL_RATIO
 
     BATCH_SIZE = 32
 
-    # ✅ 修改: Transformer 使用 Encoder-Decoder 架構的配置
+    # ========== Model Configurations ==========
     MODEL_CONFIGS = {
         "transformer": {
-            "learning_rate": 0.00003,      # 維持原學習率
-            "epochs": 400,                 # 增加訓練時間
-            "early_stopping_patience": 60, # 更大耐心
+            "learning_rate": 0.00003,      # ✅ 降低學習率
+            "epochs": 400,                 # ✅ 增加訓練時間
+            "early_stopping_patience": 60, # ✅ 更大耐心
             "model_params": {
-                "d_model": 256,            # 增大到 256
-                "nhead": 8,                # 增加到 8 頭
-                "num_encoder_layers": 4,   # Encoder N 層
-                "num_decoder_layers": 6,   # Decoder N 層
-                "dropout": 0.15,            # 降低 dropout
+                "d_model": 256,            # 保持
+                "nhead": 8,                # 保持
+                "num_encoder_layers": 4,   # Encoder 4 層
+                "num_decoder_layers": 6,   # ✅ Decoder 增加到 6 層
+                "dropout": 0.15,           # ✅ 降低 dropout
             }
         },
         "lstm": {
-            "learning_rate": 0.00005,
-            "epochs": 200,
-            "early_stopping_patience": 40,
+            "learning_rate": 0.0001,       # ✅ 提高學習率（從 0.00003 提高到 0.0001）
+            "epochs": 150,                 # ✅ 減少訓練時間（從 300 降到 150）
+            "early_stopping_patience": 25, # ✅ 更小耐心（從 50 降到 25）
             "model_params": {
-                "hidden_dim": 256,
-                "num_layers": 2,
-                "dropout": 0.5,
+                "hidden_dim": 128,         # ✅ 降低隱藏層維度（從 256 降到 128）
+                "num_layers": 2,           # ✅ 降低層數（從 3 降到 2）
+                "dropout": 0.2,            # ✅ 降低 dropout（從 0.3 降到 0.2）
+                "bidirectional": False,    # ✅ 移除雙向
             }
         },
         "gru": {
@@ -157,7 +170,7 @@ def main():
         }
     }
 
-    # Device configuration
+    # ========== Device Configuration ==========
     if torch.cuda.is_available():
         device = "cuda"
     elif torch.backends.mps.is_available():
@@ -165,6 +178,7 @@ def main():
     else:
         device = "cpu"
 
+    # ========== Display Configuration ==========
     print(f"\n{'='*60}")
     print(f"Stock Price Prediction Pipeline")
     print(f"{'='*60}")
@@ -184,8 +198,14 @@ def main():
         print(f"Step 1: Loading Data")
         print(f"{'='*60}\n")
 
-        data_loader = DataLoader(tickers=TICKERS, start_date=START_DATE, end_date=END_DATE)
+        data_loader = DataLoader(
+            tickers=TICKERS, 
+            start_date=START_DATE, 
+            end_date=END_DATE
+        )
         raw_data = data_loader.load_data()
+        
+        os.makedirs("data/raw", exist_ok=True)
         raw_data.to_csv("data/raw/raw_data.csv", index=False)
 
         print(f"[INFO] Raw data saved to data/raw/raw_data.csv")
@@ -199,8 +219,10 @@ def main():
         print(f"{'='*60}\n")
 
         raw_data = pd.read_csv("data/raw/raw_data.csv")
-        preprocessor = Preprocessing()
+        preprocessor = Preprocessor()
         processed_data = preprocessor.preprocess(raw_data)
+        
+        os.makedirs("data/processed", exist_ok=True)
         processed_data.to_csv("data/processed/processed_data.csv", index=False)
 
         print(f"[INFO] Processed data saved to data/processed/processed_data.csv")
@@ -213,8 +235,10 @@ def main():
         print(f"{'='*60}\n")
 
         processed_data = pd.read_csv("data/processed/processed_data.csv")
-        feature_builder = FeatureBuilder()
+        feature_builder = FeatureEngineering()
         featured_data = feature_builder.build_features(processed_data)
+        
+        os.makedirs("data/featured", exist_ok=True)
         featured_data.to_csv("data/featured/featured_data.csv", index=False)
 
         print(f"[INFO] Featured data saved to data/featured/featured_data.csv")
@@ -241,11 +265,11 @@ def main():
             'hl_range'
         ]
 
-        # 為不同模型準備不同的資料集
+        # ========== 為不同模型準備不同的資料集 ==========
         datasets = {}
         
         for model_type in MODEL_MODE:
-            # LSTM 使用較短的序列長度
+            # ✅ LSTM 使用較短的序列長度
             current_seq_len = LSTM_SEQ_LEN if model_type == "lstm" else SEQ_LEN
             
             sequence_builder = SequenceBuilder(
@@ -299,9 +323,8 @@ def main():
                 print(f"[INFO] Early Stopping Patience: {config['early_stopping_patience']}")
                 print(f"[INFO] Model Parameters: {config['model_params']}\n")
 
-                # ✅ 修改: 根據模型類型初始化模型
+                # ========== 初始化模型 ==========
                 if model_type == "transformer":
-                    # 使用新的 Encoder-Decoder 架構
                     model = TransformerEncoderDecoderModel(
                         input_dim=input_dim,
                         d_model=config["model_params"]["d_model"],
@@ -321,6 +344,7 @@ def main():
                         output_dim=1,
                         pred_len=PRED_LEN,
                         dropout=config["model_params"]["dropout"],
+                        bidirectional=config["model_params"]["bidirectional"],  # ✅ 現在是 False
                     ).to(device)
 
                 elif model_type == "gru":
@@ -337,6 +361,7 @@ def main():
                     print(f"[WARNING] Unknown model type: {model_type}")
                     continue
 
+                # ========== 訓練 ==========
                 training = Training(
                     model=None,
                     optimizer=None,
@@ -354,16 +379,16 @@ def main():
                     model_name=model_type.upper(),
                 )
 
+                # ========== 儲存模型 ==========
+                os.makedirs("output/model", exist_ok=True)
                 model_save_path = f"output/model/{model_type}_model.pth"
                 torch.save(model.state_dict(), model_save_path)
-                print(
-                    f"\n[INFO] {model_type.upper()} model saved to {model_save_path}"
-                )
+                print(f"\n[INFO] {model_type.upper()} model saved to {model_save_path}")
                 print(f"[INFO] Best epoch: {best_epoch}\n")
 
         # ========== Testing Phase ==========
         if "test" in MODE:
-            # 先評估 Naive Baseline (只需跑一次)
+            # ========== 先評估 Naive Baseline (只需跑一次) ==========
             if "transformer" in MODEL_MODE:
                 naive_results = evaluate_naive_baseline(
                     test_loader=datasets["transformer"]['test_loader'],
@@ -374,6 +399,7 @@ def main():
                 )
                 all_results["naive_baseline"] = naive_results
 
+            # ========== 評估各模型 ==========
             for model_type in MODEL_MODE:
                 print(f"\n{'='*60}")
                 print(f"Testing {model_type.upper()} Model")
@@ -382,9 +408,8 @@ def main():
                 config = MODEL_CONFIGS[model_type]
                 dataset = datasets[model_type]
 
-                # ✅ 修改: 初始化模型
+                # ========== 初始化模型 ==========
                 if model_type == "transformer":
-                    # 使用新的 Encoder-Decoder 架構
                     model = TransformerEncoderDecoderModel(
                         input_dim=input_dim,
                         d_model=config["model_params"]["d_model"],
@@ -404,6 +429,7 @@ def main():
                         output_dim=1,
                         pred_len=PRED_LEN,
                         dropout=config["model_params"]["dropout"],
+                        bidirectional=config["model_params"]["bidirectional"],  # ✅ 新增
                     ).to(device)
 
                 elif model_type == "gru":
@@ -420,7 +446,7 @@ def main():
                     print(f"[WARNING] Unknown model type: {model_type}")
                     continue
 
-                # 載入訓練好的模型
+                # ========== 載入訓練好的模型 ==========
                 model_path = f"output/model/{model_type}_model.pth"
                 if os.path.exists(model_path):
                     model.load_state_dict(torch.load(model_path, map_location=device))
@@ -429,6 +455,7 @@ def main():
                     print(f"[ERROR] Model file not found: {model_path}")
                     continue
 
+                # ========== 評估 ==========
                 training = Training(
                     model=None,
                     optimizer=None,
@@ -451,7 +478,7 @@ def main():
 
                 all_results[model_type] = results
 
-            # 儲存所有結果
+            # ========== 儲存所有結果 ==========
             results_path = "output/result/test_results.json"
             os.makedirs("output/result", exist_ok=True)
             with open(results_path, "w") as f:
@@ -461,17 +488,19 @@ def main():
             print(f"All results saved to {results_path}")
             print(f"{'='*60}\n")
 
-            # 顯示模型比較
+            # ========== 顯示模型比較 ==========
             print(f"\n{'='*60}")
             print(f"Model Comparison Summary")
             print(f"{'='*60}\n")
 
+            # Naive Baseline
             if "naive_baseline" in all_results:
                 print(f"Naive Baseline:")
                 print(f"  MAPE: {all_results['naive_baseline']['mape']:.2f}%")
                 print(f"  R²:   {all_results['naive_baseline']['r2']:.4f}")
                 print(f"\n{'─'*60}\n")
 
+            # 各模型
             for model_type in MODEL_MODE:
                 if model_type in all_results:
                     overall = all_results[model_type]["overall"]
