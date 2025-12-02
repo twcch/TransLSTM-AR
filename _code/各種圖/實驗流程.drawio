@@ -1,0 +1,144 @@
+<mxfile host="65bd71144e">
+    <diagram name="第 1 页" id="OZd7U61QbL63Sr1o9XpF">
+        <mxGraphModel dx="1181" dy="787" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="85lXQVpF2valhvritsQH-15" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;dashed=1;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;" parent="1" vertex="1">
+                    <mxGeometry x="270" y="130" width="482.41" height="480" as="geometry"/>
+                </mxCell>
+                <mxCell id="34" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;dashPattern=8 8;strokeColor=#66CC00;movable=1;resizable=1;rotatable=1;deletable=1;editable=1;locked=0;connectable=1;" parent="1" vertex="1">
+                    <mxGeometry x="341.39000000000004" y="301.14" width="181.08" height="286.14" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-8" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFE6CC;dashed=1;strokeColor=#FF9933;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="120" width="208.19" height="520" as="geometry"/>
+                </mxCell>
+                <mxCell id="14" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;dashed=1;dashPattern=8 8;strokeColor=#FF9933;strokeWidth=1;" parent="1" vertex="1">
+                    <mxGeometry x="43.13" y="359.47" width="161.93" height="260.53" as="geometry"/>
+                </mxCell>
+                <mxCell id="12" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="794.94" y="130" width="185.06" height="446.14" as="geometry"/>
+                </mxCell>
+                <mxCell id="2" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;rounded=0;curved=0;" parent="1" source="85lXQVpF2valhvritsQH-8" target="85lXQVpF2valhvritsQH-9" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="124" y="670"/>
+                            <mxPoint x="251" y="670"/>
+                            <mxPoint x="251.32530120481925" y="120"/>
+                            <mxPoint x="432" y="120"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="8" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;rounded=0;curved=0;" parent="1" source="85lXQVpF2valhvritsQH-8" target="85lXQVpF2valhvritsQH-13" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="124" y="670"/>
+                            <mxPoint x="251" y="670"/>
+                            <mxPoint x="251" y="120"/>
+                            <mxPoint x="450" y="120"/>
+                            <mxPoint x="675" y="120"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-21" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="85lXQVpF2valhvritsQH-1" target="85lXQVpF2valhvritsQH-2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-1" value="&lt;font face=&quot;Times New Roman&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b style=&quot;&quot;&gt;Yahoo Finance API&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="54.69879518072289" y="154.21052631578948" width="138.79518072289156" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="40" style="edgeStyle=none;html=1;" parent="1" source="85lXQVpF2valhvritsQH-2" target="14" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-2" value="&lt;font face=&quot;標楷體&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b style=&quot;&quot;&gt;原始資料&lt;/b&gt;&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b&gt;TSMC&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b style=&quot;&quot;&gt;AAPL&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="54.69879518072289" y="256.8421052631579" width="138.79518072289156" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-4" value="&lt;font face=&quot;標楷體&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b&gt;劃分移動視窗&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="64.09879518072289" y="560.0033333333333" width="120" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-5" value="&lt;font face=&quot;標楷體&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b&gt;正規化&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="64.09879518072289" y="496.04877192982457" width="120" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-6" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;&lt;b style=&quot;&quot;&gt;&lt;font face=&quot;標楷體&quot;&gt;計算&lt;/font&gt;&lt;font face=&quot;Times New Roman&quot;&gt;&amp;nbsp;&lt;/font&gt;&lt;font face=&quot;Times New Roman&quot;&gt;RSI&lt;/font&gt;&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="64.10000000000002" y="436.83000000000004" width="120" height="44.04" as="geometry"/>
+                </mxCell>
+                <mxCell id="36" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="85lXQVpF2valhvritsQH-9" target="34" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-9" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E6E6E6;" parent="1" vertex="1">
+                    <mxGeometry x="281.57000000000005" y="165.61" width="300.72" height="94.39" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-11" value="&lt;font face=&quot;標楷體&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b style=&quot;&quot;&gt;訓練集&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="304.699156626506" y="177.01754385964912" width="115.66265060240963" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-12" value="&lt;font face=&quot;標楷體&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b style=&quot;&quot;&gt;驗證集&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="443.49433734939754" y="177.01754385964912" width="115.66265060240963" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="31" style="edgeStyle=none;html=1;" parent="1" source="85lXQVpF2valhvritsQH-13" target="85lXQVpF2valhvritsQH-17" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-13" value="&lt;font face=&quot;標楷體&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b&gt;測試集&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="605.422048192771" y="165.6140350877193" width="138.79518072289156" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="32" style="edgeStyle=none;html=1;" parent="1" source="85lXQVpF2valhvritsQH-17" target="85lXQVpF2valhvritsQH-18" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-17" value="&lt;font face=&quot;標楷體&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b&gt;模型測試&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="605.4204819277109" y="409.99736842105256" width="138.79518072289156" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="37" style="edgeStyle=none;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;rounded=0;curved=0;" parent="1" source="85lXQVpF2valhvritsQH-18" target="12" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="675" y="640"/>
+                            <mxPoint x="887" y="640"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-18" value="&lt;font face=&quot;標楷體&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b&gt;模型評估&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="605.4204819277107" y="515.9989473684211" width="138.79518072289156" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-20" value="&lt;font face=&quot;Times New Roman&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b style=&quot;&quot;&gt;Buy and Hold&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="818.0722891566264" y="159.9977192982456" width="138.79518072289156" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="85lXQVpF2valhvritsQH-30" value="&lt;font face=&quot;標楷體&quot; style=&quot;font-size: 16px;&quot;&gt;&lt;b style=&quot;&quot;&gt;使用深度學習模型&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="818.0722891566264" y="412.4522807017544" width="138.79518072289156" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="3" value="&lt;font style=&quot;&quot;&gt;&lt;font style=&quot;font-size: 16px;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b style=&quot;&quot;&gt;Seq2Seq LSTM&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;/font&gt;&lt;div&gt;&lt;font size=&quot;3&quot; style=&quot;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b&gt;MLP LSTM&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font size=&quot;3&quot; style=&quot;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b&gt;Transformer&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font size=&quot;3&quot; style=&quot;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b style=&quot;&quot;&gt;TransLSTM-AR&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="349.46000000000004" y="328.77" width="165.06" height="83.68" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="&lt;font style=&quot;font-size: 16px;&quot; face=&quot;標楷體&quot;&gt;&lt;b style=&quot;&quot;&gt;預測後五天&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="349.46265060240984" y="511.13771929824554" width="167.71084337349396" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="7" value="&lt;font style=&quot;font-size: 16px;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b style=&quot;&quot;&gt;TransLSTM-AR&lt;/b&gt;&lt;/font&gt;&lt;div&gt;&lt;font size=&quot;3&quot; style=&quot;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b&gt;TransBiLSTM-AR&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;&lt;div&gt;&lt;font size=&quot;3&quot; style=&quot;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b style=&quot;&quot;&gt;TransGRU-AR&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="348.86000000000007" y="421.14" width="165.06" height="74.91" as="geometry"/>
+                </mxCell>
+                <mxCell id="10" value="&lt;b style=&quot;&quot;&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;&lt;font style=&quot;&quot; face=&quot;Times New Roman&quot;&gt;GA&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;&quot; face=&quot;標楷體&quot;&gt;優化後的&lt;/font&gt;&lt;font style=&quot;&quot; face=&quot;Times New Roman&quot;&gt;&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;&quot; face=&quot;Times New Roman&quot;&gt;RSI+&lt;/font&gt;&lt;font style=&quot;&quot; face=&quot;標楷體&quot;&gt;模型&lt;/font&gt;&lt;font style=&quot;&quot; face=&quot;標楷體&quot;&gt;預測&lt;/font&gt;&lt;/font&gt;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="818.0722891566263" y="496.0531578947369" width="138.79518072289156" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="11" value="&lt;font style=&quot;font-size: 16px;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b style=&quot;&quot;&gt;RsiBuy=30&lt;/b&gt;&lt;/font&gt;&lt;div&gt;&lt;font style=&quot;font-size: 16px;&quot; face=&quot;Times New Roman&quot;&gt;&lt;b style=&quot;&quot;&gt;RsiSell=70&lt;/b&gt;&lt;/font&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="818.0722891566263" y="245.43859649122808" width="138.79518072289156" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="9xYp_hU-q4OD5D59eK4R-1" value="&lt;b&gt;&lt;font style=&quot;font-size: 14px;&quot; face=&quot;標楷體&quot;&gt;資料蒐集及處理&lt;/font&gt;&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+                    <mxGeometry x="70.9" y="120" width="106.39" height="34.21" as="geometry"/>
+                </mxCell>
+                <mxCell id="24" value="&lt;font style=&quot;font-size: 14px;&quot; face=&quot;標楷體&quot;&gt;&lt;b&gt;回測方法&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+                    <mxGeometry x="857.47" y="130" width="60" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="27" value="&lt;font style=&quot;font-size: 14px;&quot; face=&quot;標楷體&quot;&gt;&lt;b&gt;實驗&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+                    <mxGeometry x="401.39" y="301.14" width="60" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="35" style="edgeStyle=none;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="34" target="85lXQVpF2valhvritsQH-17" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="38" value="&lt;font face=&quot;標楷體&quot;&gt;&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;模型訓練&lt;/b&gt;&lt;/span&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+                    <mxGeometry x="481.20000000000005" y="130" width="60" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="39" value="&lt;b style=&quot;&quot;&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;&lt;font style=&quot;&quot; face=&quot;Times New Roman&quot;&gt;GA&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;&quot; face=&quot;標楷體&quot;&gt;優化後的&lt;/font&gt;&lt;font style=&quot;&quot; face=&quot;Times New Roman&quot;&gt;&amp;nbsp;RSI&lt;/font&gt;&lt;/font&gt;&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="818.0722891566263" y="328.8585964912281" width="138.79518072289156" height="68.42105263157895" as="geometry"/>
+                </mxCell>
+                <mxCell id="41" value="&lt;font face=&quot;標楷體&quot;&gt;&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;b&gt;刪除成交量欄位&lt;/b&gt;&lt;/span&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+                    <mxGeometry x="64.10000000000002" y="377.14000000000004" width="120" height="44" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
